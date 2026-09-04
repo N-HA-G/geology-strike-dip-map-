@@ -41,3 +41,7 @@ main {
   min-height: 480px;
   border: 1px solid #bbbbbb;
 }
+
+.leaflet-control-layers {
+  font-size: 0.95rem;
+}
