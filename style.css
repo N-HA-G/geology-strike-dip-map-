@@ -224,3 +224,71 @@ td:nth-child(2){
   min-width:58px;
   text-align:center;
 }
+
+
+/* Version 0.11.0．色分け定義． */
+.color-area{
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px solid #ddd;
+}
+
+.color-definition-add{
+  display:grid;
+  grid-template-columns:minmax(160px,1fr) 90px auto;
+  gap:8px;
+  align-items:end;
+}
+
+.color-definition-list{
+  margin-top:10px;
+  display:grid;
+  gap:6px;
+}
+
+.color-definition-row{
+  display:grid;
+  grid-template-columns:minmax(140px,1fr) 64px 88px auto;
+  gap:8px;
+  align-items:center;
+}
+
+.color-definition-row input{
+  margin:0;
+}
+
+.color-definition-picker{
+  min-height:38px;
+  padding:2px;
+}
+
+.color-definition-code{
+  font-family:Consolas,monospace;
+  font-size:.8rem;
+}
+
+.table-color-cell{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:180px;
+}
+
+.table-color-swatch{
+  width:18px;
+  height:18px;
+  flex:0 0 auto;
+  border:1px solid #777;
+  border-radius:3px;
+}
+
+.table-color-select{
+  min-width:145px;
+}
+
+@media(max-width:620px){
+  .color-definition-add,
+  .color-definition-row{
+    grid-template-columns:1fr;
+  }
+}

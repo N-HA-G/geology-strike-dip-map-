@@ -57,6 +57,10 @@
           <input id="structureType" type="text" placeholder="例．層理面，亀裂，断層面，スリッケンライン">
         </label>
 
+        <label>色区分
+          <select id="colorGroup"></select>
+        </label>
+
         <label>補足情報
           <textarea id="notes" rows="4" placeholder="露頭の状態，測定条件，写真番号，観察事項などを自由に記録できます．"></textarea>
         </label>
@@ -87,6 +91,28 @@
         <p class="help">50〜200％で変更できます．地図表示とPNG・JPEG・PDF出力に反映し，作業JSONにも保存します．</p>
       </div>
 
+      <div class="color-area">
+        <h3>色分け定義</h3>
+
+        <div class="color-definition-add">
+          <label>色区分名
+            <input id="newColorName" type="text" placeholder="例．層理面，亀裂，層面すべり面">
+          </label>
+
+          <label>色
+            <input id="newColorValue" type="color" value="#d62728">
+          </label>
+
+          <button type="button" id="addColorDefinition">色区分を追加</button>
+        </div>
+
+        <div id="colorDefinitionList" class="color-definition-list"></div>
+
+        <p class="help">
+          色区分名と色は自由に定義できます．各ポイントへ色区分を割り当てると，走向・傾斜記号の色に反映します．
+        </p>
+      </div>
+
       <div class="import-area">
         <h3>GPX読み込み</h3>
         <label>GPXファイル
@@ -101,8 +127,18 @@
       </div>
 
       <div class="import-area">
-        <h3>Excelテンプレート読み込み</h3>
-        <p class="template-link-row"><a href="strike_dip_import_template.xlsx" download>Excel入力テンプレートをダウンロード</a></p>
+        <h3>Excelによる一括入力</h3>
+
+        <div class="actions">
+          <button type="button" id="exportPointExcel" disabled>現在のポイントから入力用Excelを作成</button>
+        </div>
+
+        <p class="help">
+          現在登録されている地点番号と座標をExcelへ書き出します．Excelで走向・傾斜等を入力し，再度読み込むと地点番号で元ポイントへ反映します．
+        </p>
+
+        <p class="template-link-row"><a href="strike_dip_import_template.xlsx" download>空のExcel入力テンプレートをダウンロード</a></p>
+
         <label>入力済みExcelファイル
           <input id="excelFiles" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple>
         </label>
@@ -175,12 +211,13 @@
             <th><button class="sort-button" data-sort="surveyDate">測定日</button></th>
             <th><button class="sort-button" data-sort="lithology">岩種・地層名</button></th>
             <th><button class="sort-button" data-sort="structureType">面・構造</button></th>
+            <th>色区分</th>
             <th><button class="sort-button" data-sort="notes">補足情報</button></th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody id="pointTableBody">
-          <tr><td colspan="17" class="empty">まだポイントはありません．</td></tr>
+          <tr><td colspan="18" class="empty">まだポイントはありません．</td></tr>
         </tbody>
       </table>
     </div>

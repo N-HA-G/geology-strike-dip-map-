@@ -33,6 +33,7 @@ const dipTextInput=$("dipText");
 const surveyDateInput=$("surveyDate");
 const lithologyInput=$("lithology");
 const structureTypeInput=$("structureType");
+const colorGroupInput=$("colorGroup");
 const notesInput=$("notes");
 const symbolSizeInput=$("symbolSize");
 const symbolSizeValue=$("symbolSizeValue");
@@ -49,6 +50,11 @@ const draftStatus=$("draftStatus");
 const gpxFilesInput=$("gpxFiles");
 const excelFilesInput=$("excelFiles");
 const loadExcelButton=$("loadExcel");
+const exportPointExcelButton=$("exportPointExcel");
+const newColorNameInput=$("newColorName");
+const newColorValueInput=$("newColorValue");
+const addColorDefinitionButton=$("addColorDefinition");
+const colorDefinitionList=$("colorDefinitionList");
 const gpxFileList=$("gpxFileList");
 const loadProjectFileInput=$("loadProjectFile");
 const exportCsvButton=$("exportCsv");
@@ -81,6 +87,11 @@ let sortKey="createdOrder";
 let sortAscending=true;
 let symbolScalePercent=100;
 const tableDrafts=new Map();
+
+let colorDefinitions=[
+  {id:"default",name:"標準",color:"#111111"}
+];
+let nextColorDefinitionId=1;
 
 let importedGpxFiles=[];
 const importedGpxKeys=new Set();
@@ -177,6 +188,213 @@ function parseAttitudeInputs(showError=true){
 strikeTextInput.addEventListener("input",()=>parseAttitudeInputs());
 dipTextInput.addEventListener("input",()=>parseAttitudeInputs());
 
+function normalizeHexColor(value,fallback="#111111"){
+  const text=String(value??"").trim();
+
+  if(/^#[0-9a-fA-F]{6}$/.test(text)){
+    return text.toLowerCase();
+  }
+
+  if(/^[0-9a-fA-F]{6}$/.test(text)){
+    return `#${text.toLowerCase()}`;
+  }
+
+  return fallback;
+}
+
+function getColorDefinition(id){
+  return colorDefinitions.find(def=>def.id===id)
+    ||colorDefinitions[0]
+    ||{id:"default",name:"標準",color:"#111111"};
+}
+
+function findColorDefinitionByName(name){
+  const key=String(name??"").trim().toLocaleLowerCase("ja");
+
+  if(!key)return null;
+
+  return colorDefinitions.find(
+    def=>def.name.trim().toLocaleLowerCase("ja")===key
+  )||null;
+}
+
+function ensureColorDefinition(name,color="#111111"){
+  const cleanName=String(name??"").trim();
+
+  if(!cleanName){
+    return getColorDefinition("default");
+  }
+
+  const existing=findColorDefinitionByName(cleanName);
+
+  if(existing){
+    if(color){
+      existing.color=normalizeHexColor(color,existing.color);
+    }
+    return existing;
+  }
+
+  const def={
+    id:`color-${nextColorDefinitionId++}`,
+    name:cleanName,
+    color:normalizeHexColor(color)
+  };
+
+  colorDefinitions.push(def);
+  renderColorDefinitions();
+  return def;
+}
+
+function pointSymbolColor(item){
+  return normalizeHexColor(
+    getColorDefinition(item.colorDefinitionId||"default").color,
+    "#111111"
+  );
+}
+
+function renderColorGroupOptions(){
+  const current=colorGroupInput.value||"default";
+
+  colorGroupInput.innerHTML=colorDefinitions.map(def=>
+    `<option value="${escapeHtml(def.id)}">${escapeHtml(def.name)}</option>`
+  ).join("");
+
+  colorGroupInput.value=colorDefinitions.some(def=>def.id===current)
+    ?current
+    :"default";
+}
+
+function renderColorDefinitions(){
+  renderColorGroupOptions();
+
+  if(colorDefinitions.length===0){
+    colorDefinitionList.textContent="色区分がありません．";
+    return;
+  }
+
+  colorDefinitionList.innerHTML=colorDefinitions.map(def=>`
+    <div class="color-definition-row" data-color-definition-id="${escapeHtml(def.id)}">
+      <input
+        class="color-definition-name"
+        type="text"
+        value="${escapeHtml(def.name)}"
+        ${def.id==="default"?"readonly":""}
+        aria-label="色区分名"
+      >
+      <input
+        class="color-definition-picker"
+        type="color"
+        value="${normalizeHexColor(def.color)}"
+        aria-label="${escapeHtml(def.name)}の色"
+      >
+      <span class="color-definition-code">${normalizeHexColor(def.color)}</span>
+      <button
+        type="button"
+        class="delete-color-definition"
+        ${def.id==="default"?"disabled":""}
+      >削除</button>
+    </div>
+  `).join("");
+
+  renderMeasurements();
+}
+
+addColorDefinitionButton.addEventListener("click",()=>{
+  const name=newColorNameInput.value.trim();
+
+  if(!name){
+    msg.textContent="追加する色区分名を入力してください．";
+    msg.className="msg error";
+    return;
+  }
+
+  if(findColorDefinitionByName(name)){
+    msg.textContent=`色区分「${name}」はすでにあります．`;
+    msg.className="msg error";
+    return;
+  }
+
+  const def=ensureColorDefinition(name,newColorValueInput.value);
+  newColorNameInput.value="";
+  colorGroupInput.value=def.id;
+
+  msg.textContent=`色区分「${def.name}」を追加しました．`;
+  msg.className="msg success";
+});
+
+colorDefinitionList.addEventListener("change",event=>{
+  const row=event.target.closest("[data-color-definition-id]");
+  if(!row)return;
+
+  const id=row.dataset.colorDefinitionId;
+  const def=getColorDefinition(id);
+
+  if(event.target.classList.contains("color-definition-picker")){
+    def.color=normalizeHexColor(event.target.value,def.color);
+    rebuildAllMeasurementMarkers();
+    renderColorDefinitions();
+
+    msg.textContent=`色区分「${def.name}」の色を変更しました．`;
+    msg.className="msg success";
+  }
+
+  if(event.target.classList.contains("color-definition-name")&&id!=="default"){
+    const newName=event.target.value.trim();
+
+    if(!newName){
+      event.target.value=def.name;
+      return;
+    }
+
+    const duplicate=colorDefinitions.find(
+      other=>other.id!==id&&other.name.toLocaleLowerCase("ja")===newName.toLocaleLowerCase("ja")
+    );
+
+    if(duplicate){
+      event.target.value=def.name;
+      msg.textContent="同じ色区分名は使用できません．";
+      msg.className="msg error";
+      return;
+    }
+
+    def.name=newName;
+    renderColorDefinitions();
+  }
+});
+
+colorDefinitionList.addEventListener("click",event=>{
+  const button=event.target.closest(".delete-color-definition");
+
+  if(!button)return;
+
+  const row=button.closest("[data-color-definition-id]");
+  const id=row?.dataset.colorDefinitionId;
+
+  if(!id||id==="default")return;
+
+  const def=getColorDefinition(id);
+
+  measurements.forEach(item=>{
+    if(item.colorDefinitionId===id){
+      item.colorDefinitionId="default";
+      rebuildMarker(item);
+    }
+  });
+
+  for(const draft of tableDrafts.values()){
+    if(draft.colorDefinitionId===id){
+      draft.colorDefinitionId="default";
+    }
+  }
+
+  colorDefinitions=colorDefinitions.filter(item=>item.id!==id);
+
+  renderColorDefinitions();
+
+  msg.textContent=`色区分「${def.name}」を削除し，対象ポイントを標準色へ変更しました．`;
+  msg.className="msg";
+});
+
 function temporaryPointIcon(){
   return L.divIcon({
     className:"click-point-icon",
@@ -184,14 +402,17 @@ function temporaryPointIcon(){
     iconSize:[26,26],iconAnchor:[13,13]
   });
 }
-function positionPointIcon(){
+function positionPointIcon(color="#8a5b00"){
+  const safe=normalizeHexColor(color,"#8a5b00");
+
   return L.divIcon({
     className:"position-point-icon",
-    html:'<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="7" fill="#fff" stroke="#8a5b00" stroke-width="3"/><circle cx="15" cy="15" r="2.5" fill="#8a5b00"/></svg>',
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="7" fill="#fff" stroke="${safe}" stroke-width="3"/><circle cx="15" cy="15" r="2.5" fill="${safe}"/></svg>`,
     iconSize:[30,30],iconAnchor:[15,15]
   });
 }
-function strikeDipSvg(strike,dip,dipDirection){
+function strikeDipSvg(strike,dip,dipDirection,color="#111111"){
+  const safeColor=normalizeHexColor(color,"#111111");
   const scale=symbolScalePercent/100;
   const size=76*scale,center=size/2;
   const strikeHalfLength=22*scale,dipTickLength=14*scale,radians=Math.PI/180;
@@ -202,13 +423,18 @@ function strikeDipSvg(strike,dip,dipDirection){
   const tx=center+dx*dipTickLength,ty=center+dy*dipTickLength;
   const textX=center+dx*24*scale,textY=center+dy*24*scale+4*scale;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#111" stroke-width="${2.4*scale}" stroke-linecap="round"/>
-  <line x1="${center}" y1="${center}" x2="${tx}" y2="${ty}" stroke="#111" stroke-width="${2.4*scale}" stroke-linecap="round"/>
-  <text x="${textX}" y="${textY}" text-anchor="middle" dominant-baseline="middle" font-family="Arial,sans-serif" font-size="${13*scale}" font-weight="700" fill="#111" stroke="#fff" stroke-width="${3*scale}" paint-order="stroke">${Number(dip.toFixed(1))}</text></svg>`;
+  <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${safeColor}" stroke-width="${2.4*scale}" stroke-linecap="round"/>
+  <line x1="${center}" y1="${center}" x2="${tx}" y2="${ty}" stroke="${safeColor}" stroke-width="${2.4*scale}" stroke-linecap="round"/>
+  <text x="${textX}" y="${textY}" text-anchor="middle" dominant-baseline="middle" font-family="Arial,sans-serif" font-size="${13*scale}" font-weight="700" fill="${safeColor}" stroke="#fff" stroke-width="${3*scale}" paint-order="stroke">${Number(dip.toFixed(1))}</text></svg>`;
 }
-function strikeDipIcon(strike,dip,dipDirection){
+function strikeDipIcon(strike,dip,dipDirection,color="#111111"){
   const size=76*(symbolScalePercent/100);
-  return L.divIcon({className:"strike-dip-icon",html:strikeDipSvg(strike,dip,dipDirection),iconSize:[size,size],iconAnchor:[size/2,size/2]});
+  return L.divIcon({
+    className:"strike-dip-icon",
+    html:strikeDipSvg(strike,dip,dipDirection,color),
+    iconSize:[size,size],
+    iconAnchor:[size/2,size/2]
+  });
 }
 
 function rebuildAllMeasurementMarkers(){
@@ -253,6 +479,7 @@ function popupHtml(item){
     item.surveyDate?`測定日．${escapeHtml(item.surveyDate)}`:"",
     item.lithology?`岩種・地層名．${escapeHtml(item.lithology)}`:"",
     item.structureType?`面・構造．${escapeHtml(item.structureType)}`:"",
+    item.colorDefinitionId?`色区分．${escapeHtml(getColorDefinition(item.colorDefinitionId).name)}`:"",
     item.notes?`補足情報．${escapeHtml(item.notes).replaceAll("\n","<br>")}`:""
   ].filter(Boolean).join("<br>");
 
@@ -260,7 +487,10 @@ function popupHtml(item){
 }
 
 function buildMarker(item){
-  const icon=item.hasAttitude?strikeDipIcon(item.strike,item.dip,item.dipDirection):positionPointIcon();
+  const color=pointSymbolColor(item);
+  const icon=item.hasAttitude
+    ?strikeDipIcon(item.strike,item.dip,item.dipDirection,color)
+    :positionPointIcon(color);
   item.marker=L.marker([item.latitude,item.longitude],{icon,title:item.pointId});
   item.marker.bindPopup(popupHtml(item));
 
@@ -294,6 +524,7 @@ function plainPoint(item){
     lithology:item.lithology,
     structureType:item.structureType,
     notes:item.notes,
+    colorDefinitionId:item.colorDefinitionId||"default",
     gpxTime:item.gpxTime,
     visible:item.visible!==false
   };
@@ -320,6 +551,7 @@ function createPoint(data){
     lithology:data.lithology||"",
     structureType:data.structureType||"",
     notes:data.notes||"",
+    colorDefinitionId:data.colorDefinitionId||"default",
     gpxTime:data.gpxTime||"",
     visible:data.visible!==false,
     marker:null
@@ -341,6 +573,7 @@ function resetForm(){
   surveyDateInput.value="";
   lithologyInput.value="";
   structureTypeInput.value="";
+  colorGroupInput.value="default";
   notesInput.value="";
   parseAttitudeInputs(false);
 }
@@ -357,6 +590,7 @@ function startEditing(item){
   surveyDateInput.value=item.surveyDate||"";
   lithologyInput.value=item.lithology||"";
   structureTypeInput.value=item.structureType||"";
+  colorGroupInput.value=item.colorDefinitionId||"default";
   notesInput.value=item.notes||"";
   parseAttitudeInputs(false);
   map.setView([item.latitude,item.longitude],Math.max(map.getZoom(),17));
@@ -396,6 +630,7 @@ pointForm.addEventListener("submit",event=>{
     item.surveyDate=surveyDateInput.value;
     item.lithology=lithologyInput.value.trim();
     item.structureType=structureTypeInput.value;
+    item.colorDefinitionId=colorGroupInput.value||"default";
     item.notes=notesInput.value.trim();
     rebuildMarker(item);
     tableDrafts.delete(item.id);
@@ -415,6 +650,7 @@ pointForm.addEventListener("submit",event=>{
     surveyDate:surveyDateInput.value,
     lithology:lithologyInput.value.trim(),
     structureType:structureTypeInput.value,
+    colorDefinitionId:colorGroupInput.value||"default",
     notes:notesInput.value.trim()
   });
 
@@ -497,6 +733,18 @@ function tableInput(dataId,field,value,type="text",extra=""){
   >`;
 }
 
+function tableColorSelect(dataId,value){
+  const selected=value||"default";
+
+  return `<select
+    class="table-editor table-color-select"
+    data-edit-id="${dataId}"
+    data-field="colorDefinitionId"
+  >${colorDefinitions.map(def=>
+    `<option value="${escapeHtml(def.id)}" ${def.id===selected?"selected":""}>${escapeHtml(def.name)}</option>`
+  ).join("")}</select>`;
+}
+
 function tableTextarea(dataId,field,value){
   return `<textarea
     class="table-editor table-notes-editor"
@@ -545,12 +793,13 @@ function renderMeasurements(){
   completeCount.textContent=String(measurements.filter(item=>item.hasAttitude).length);
   exportCsvButton.disabled=measurements.length===0;
   exportGeoJsonButton.disabled=measurements.length===0;
+  exportPointExcelButton.disabled=measurements.length===0;
   pointTableBody.innerHTML="";
 
   const sorted=getSortedMeasurements();
 
   if(sorted.length===0){
-    pointTableBody.innerHTML='<tr><td colspan="17" class="empty">まだポイントはありません．</td></tr>';
+    pointTableBody.innerHTML='<tr><td colspan="18" class="empty">まだポイントはありません．</td></tr>';
     updateSortButtons();
     updateDraftState();
     return;
@@ -585,6 +834,12 @@ function renderMeasurements(){
       <td>${tableInput(item.id,"surveyDate",editableValue(item,"surveyDate"),"date")}</td>
       <td>${tableInput(item.id,"lithology",editableValue(item,"lithology"))}</td>
       <td>${tableInput(item.id,"structureType",editableValue(item,"structureType"))}</td>
+      <td>
+        <div class="table-color-cell">
+          <span class="table-color-swatch" style="background:${pointSymbolColor(item)}"></span>
+          ${tableColorSelect(item.id,editableValue(item,"colorDefinitionId"))}
+        </div>
+      </td>
       <td>${tableTextarea(item.id,"notes",editableValue(item,"notes"))}</td>
       <td><div class="table-actions">
         <button type="button" data-action="focus" data-id="${item.id}">地図へ</button>
@@ -729,6 +984,11 @@ applyTableChangesButton.addEventListener("click",()=>{
               ? draft.structureType
               : item.structureType
           ).trim(),
+          colorDefinitionId:String(
+            Object.prototype.hasOwnProperty.call(draft,"colorDefinitionId")
+              ? draft.colorDefinitionId
+              : item.colorDefinitionId||"default"
+          ),
           notes:String(
             Object.prototype.hasOwnProperty.call(draft,"notes")
               ? draft.notes
@@ -795,6 +1055,44 @@ function normalizeExcelDate(value){
   return text;
 }
 
+function readExcelColorDefinitions(workbook){
+  const sheetName=workbook.SheetNames.find(name=>
+    ["色定義","色分け定義","Color Definitions"].includes(name)
+  );
+
+  if(!sheetName)return [];
+
+  const rows=XLSX.utils.sheet_to_json(
+    workbook.Sheets[sheetName],
+    {defval:"",raw:false}
+  );
+
+  return rows.map(row=>({
+    name:String(
+      getExcelValue(row,["色区分","色区分名","name","color_group"])
+    ).trim(),
+    color:normalizeHexColor(
+      getExcelValue(row,["色(HEX)","色","color","hex"]),
+      "#111111"
+    )
+  })).filter(item=>item.name);
+}
+
+function applyExcelColorDefinitions(definitions){
+  definitions.forEach(source=>{
+    const existing=findColorDefinitionByName(source.name);
+
+    if(existing){
+      existing.color=normalizeHexColor(source.color,existing.color);
+    }else{
+      ensureColorDefinition(source.name,source.color);
+    }
+  });
+
+  renderColorDefinitions();
+  rebuildAllMeasurementMarkers();
+}
+
 function prepareExcelRows(file,workbook){
   const sheetName=workbook.SheetNames.includes("入力テンプレート")
     ?"入力テンプレート"
@@ -818,9 +1116,13 @@ function prepareExcelRows(file,workbook){
     const surveyDate=normalizeExcelDate(getExcelValue(row,["測定日","survey_date","date"]));
     const lithology=String(getExcelValue(row,["岩種・地層名","lithology"])).trim();
     const structureType=String(getExcelValue(row,["面・構造","structure_type","structure"])).trim();
+    const colorGroupName=String(
+      getExcelValue(row,["色区分","color_group","color"])
+    ).trim();
+
     const notes=String(getExcelValue(row,["補足情報","notes","note"])).trim();
 
-    const isBlank=[pointId,latRaw,lngRaw,rawStrike,rawDip,surveyDate,lithology,structureType,notes]
+    const isBlank=[pointId,latRaw,lngRaw,rawStrike,rawDip,surveyDate,lithology,structureType,colorGroupName,notes]
       .every(value=>String(value??"").trim()==="");
 
     if(isBlank)return;
@@ -870,6 +1172,7 @@ function prepareExcelRows(file,workbook){
       surveyDate,
       lithology,
       structureType,
+      colorGroupName,
       notes,
       gpxTime:""
     });
@@ -911,6 +1214,11 @@ function applyExcelRecordToPoint(item,record){
   item.surveyDate=record.surveyDate;
   item.lithology=record.lithology;
   item.structureType=record.structureType;
+
+  if(record.colorGroupName){
+    item.colorDefinitionId=ensureColorDefinition(record.colorGroupName).id;
+  }
+
   item.notes=record.notes;
 
   item.sourceFile=record.sourceFile;
@@ -922,6 +1230,122 @@ function applyExcelRecordToPoint(item,record){
 
   rebuildMarker(item);
 }
+
+function exportCurrentPointsToExcel(){
+  if(measurements.length===0){
+    msg.textContent="Excelへ書き出すポイントがありません．";
+    msg.className="msg error";
+    return;
+  }
+
+  if(typeof XLSX==="undefined"){
+    msg.textContent="Excel出力ライブラリを読み込めませんでした．通信環境を確認してください．";
+    msg.className="msg error";
+    return;
+  }
+
+  const header=[
+    "地点番号",
+    "緯度",
+    "経度",
+    "走向",
+    "傾斜",
+    "測定日",
+    "岩種・地層名",
+    "面・構造",
+    "色区分",
+    "補足情報"
+  ];
+
+  const ordered=[...measurements].sort((a,b)=>a.createdOrder-b.createdOrder);
+
+  const rows=ordered.map(item=>[
+    item.pointId,
+    Number(item.latitude.toFixed(6)),
+    Number(item.longitude.toFixed(6)),
+    item.rawStrike||"",
+    item.rawDip||"",
+    item.surveyDate||"",
+    item.lithology||"",
+    item.structureType||"",
+    getColorDefinition(item.colorDefinitionId||"default").name,
+    item.notes||""
+  ]);
+
+  const inputSheet=XLSX.utils.aoa_to_sheet([header,...rows]);
+
+  inputSheet["!cols"]=[
+    {wch:16},
+    {wch:14},
+    {wch:14},
+    {wch:12},
+    {wch:12},
+    {wch:14},
+    {wch:24},
+    {wch:24},
+    {wch:18},
+    {wch:42}
+  ];
+
+  const colorRows=[
+    ["色区分","色(HEX)"],
+    ...colorDefinitions.map(def=>[
+      def.name,
+      normalizeHexColor(def.color)
+    ])
+  ];
+
+  const colorSheet=XLSX.utils.aoa_to_sheet(colorRows);
+  colorSheet["!cols"]=[{wch:24},{wch:16}];
+
+  const guideRows=[
+    ["使い方",""],
+    ["1","Webアプリで位置ポイントを作成します．"],
+    ["2","このExcelの「入力テンプレート」シートには，地点番号と座標があらかじめ入っています．"],
+    ["3","走向，傾斜，測定日，岩種・地層名，面・構造，色区分，補足情報を入力します．"],
+    ["4","Excelを保存してWebアプリへ読み込むと，地点番号が一致する既存ポイントへ反映します．"],
+    ["5","「色定義」シートで，色区分名と色を自由に変更・追加できます．"],
+    ["走向例","N30E，N30°E，030"],
+    ["傾斜例","45SE，45°NW"],
+    ["注意","地点番号は既存ポイントとの対応キーなので，意図なく変更しないでください．"]
+  ];
+
+  const guideSheet=XLSX.utils.aoa_to_sheet(guideRows);
+  guideSheet["!cols"]=[{wch:18},{wch:72}];
+
+  const workbook=XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    inputSheet,
+    "入力テンプレート"
+  );
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    colorSheet,
+    "色定義"
+  );
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    guideSheet,
+    "説明"
+  );
+
+  XLSX.writeFile(
+    workbook,
+    `走向傾斜入力_${timestampText()}.xlsx`
+  );
+
+  msg.textContent=`${measurements.length}地点を反映した入力用Excelを作成しました．`;
+  msg.className="msg success";
+}
+
+exportPointExcelButton.addEventListener(
+  "click",
+  exportCurrentPointsToExcel
+);
 
 loadExcelButton.addEventListener("click",async()=>{
   const files=Array.from(excelFilesInput.files||[]);
@@ -947,6 +1371,11 @@ loadExcelButton.addEventListener("click",async()=>{
     for(const file of files){
       const buffer=await file.arrayBuffer();
       const workbook=XLSX.read(buffer,{type:"array",cellDates:false});
+
+      applyExcelColorDefinitions(
+        readExcelColorDefinitions(workbook)
+      );
+
       const prepared=prepareExcelRows(file,workbook);
 
       for(const record of prepared){
@@ -967,6 +1396,9 @@ loadExcelButton.addEventListener("click",async()=>{
 
         const item=createPoint({
           ...record,
+          colorDefinitionId:record.colorGroupName
+            ?ensureColorDefinition(record.colorGroupName).id
+            :"default",
           visible:true
         });
 
@@ -1156,14 +1588,17 @@ function downloadBlob(filename,blob){
 
 exportCsvButton.addEventListener("click",()=>{
   if(measurements.length===0)return;
-  const header=["point_id","visible","status","source","source_file","source_type","latitude","longitude","raw_strike","raw_dip","strike_azimuth_deg","dip_deg","dip_direction_deg","dip_direction_label","survey_date","lithology","structure_type","notes","gpx_time"];
+  const header=["point_id","visible","status","source","source_file","source_type","latitude","longitude","raw_strike","raw_dip","strike_azimuth_deg","dip_deg","dip_direction_deg","dip_direction_label","survey_date","lithology","structure_type","color_group","symbol_color","notes","gpx_time"];
   const rows=getSortedMeasurements().map(item=>[
     item.pointId,item.visible!==false,pointStatus(item),item.source,item.sourceFile,item.sourceType,
     item.latitude.toFixed(6),item.longitude.toFixed(6),item.rawStrike,item.rawDip,
     item.strike===null?"":item.strike.toFixed(1),
     item.dip===null?"":item.dip.toFixed(1),
     item.dipDirection===null?"":item.dipDirection.toFixed(1),
-    item.dipDirectionLabel,item.surveyDate,item.lithology,item.structureType,item.notes,item.gpxTime
+    item.dipDirectionLabel,item.surveyDate,item.lithology,item.structureType,
+    getColorDefinition(item.colorDefinitionId||"default").name,
+    pointSymbolColor(item),
+    item.notes,item.gpxTime
   ]);
   const csv=[header,...rows].map(row=>row.map(csvEscape).join(",")).join("\r\n");
   downloadBlob("strike_dip_points.csv",new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));
@@ -1186,6 +1621,8 @@ exportGeoJsonButton.addEventListener("click",()=>{
         survey_date:item.surveyDate,
         lithology:item.lithology,
         structure_type:item.structureType,
+        color_group:getColorDefinition(item.colorDefinitionId||"default").name,
+        symbol_color:pointSymbolColor(item),
         notes:item.notes,
         gpx_time:item.gpxTime
       }
@@ -1283,7 +1720,7 @@ function buildProjectState(){
   const center=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.10.0",
+    version:"0.11.0",
     savedAt:new Date().toISOString(),
     mapState:{
       center:[center.lat,center.lng],
@@ -1296,6 +1733,8 @@ function buildProjectState(){
     displayState:{
       symbolScalePercent
     },
+    colorDefinitions:colorDefinitions.map(def=>({...def})),
+    nextColorDefinitionId,
     tableDrafts:Array.from(tableDrafts.entries()),
     points:measurements.map(plainPoint),
     gpxFiles:importedGpxFiles.map(file=>({
@@ -1326,6 +1765,12 @@ function clearAllState(){
   if(temporaryMarker){map.removeLayer(temporaryMarker);temporaryMarker=null;}
   measurements=[];
   tableDrafts.clear();
+
+  colorDefinitions=[
+    {id:"default",name:"標準",color:"#111111"}
+  ];
+  nextColorDefinitionId=1;
+
   importedGpxFiles=[];
   importedGpxKeys.clear();
   nextInternalId=1;
@@ -1347,6 +1792,30 @@ function applyProjectState(state){
   }else{
     updateSymbolSize(100,false);
   }
+
+  if(Array.isArray(state.colorDefinitions)&&state.colorDefinitions.length>0){
+    colorDefinitions=state.colorDefinitions.map((def,index)=>({
+      id:def.id||`color-${index+1}`,
+      name:String(def.name||`色区分${index+1}`),
+      color:normalizeHexColor(def.color)
+    }));
+
+    if(!colorDefinitions.some(def=>def.id==="default")){
+      colorDefinitions.unshift({
+        id:"default",
+        name:"標準",
+        color:"#111111"
+      });
+    }
+
+    nextColorDefinitionId=Number(
+      state.nextColorDefinitionId
+    )||(
+      colorDefinitions.length+1
+    );
+  }
+
+  renderColorDefinitions();
 
   (state.points||[]).forEach(point=>createPoint(point));
 
@@ -1417,6 +1886,7 @@ $("loadProjectJson").addEventListener("click",async()=>{
 });
 
 updateSymbolSize(100,false);
+renderColorDefinitions();
 parseAttitudeInputs(false);
 renderMeasurements();
 renderGpxFileList();
