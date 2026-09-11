@@ -261,8 +261,12 @@ function popupHtml(item){
 
 function buildMarker(item){
   const icon=item.hasAttitude?strikeDipIcon(item.strike,item.dip,item.dipDirection):positionPointIcon();
-  item.marker=L.marker([item.latitude,item.longitude],{icon,title:item.pointId}).addTo(measurementLayer);
+  item.marker=L.marker([item.latitude,item.longitude],{icon,title:item.pointId});
   item.marker.bindPopup(popupHtml(item));
+
+  if(item.visible!==false){
+    item.marker.addTo(measurementLayer);
+  }
 }
 function rebuildMarker(item){
   if(item.marker)measurementLayer.removeLayer(item.marker);
@@ -290,7 +294,8 @@ function plainPoint(item){
     lithology:item.lithology,
     structureType:item.structureType,
     notes:item.notes,
-    gpxTime:item.gpxTime
+    gpxTime:item.gpxTime,
+    visible:item.visible!==false
   };
 }
 
@@ -316,6 +321,7 @@ function createPoint(data){
     structureType:data.structureType||"",
     notes:data.notes||"",
     gpxTime:data.gpxTime||"",
+    visible:data.visible!==false,
     marker:null
   };
   measurements.push(item);
@@ -544,7 +550,7 @@ function renderMeasurements(){
   const sorted=getSortedMeasurements();
 
   if(sorted.length===0){
-    pointTableBody.innerHTML='<tr><td colspan="16" class="empty">まだポイントはありません．</td></tr>';
+    pointTableBody.innerHTML='<tr><td colspan="17" class="empty">まだポイントはありません．</td></tr>';
     updateSortButtons();
     updateDraftState();
     return;
@@ -557,6 +563,15 @@ function renderMeasurements(){
 
     row.innerHTML=`
       <td>${index+1}</td>
+      <td class="visibility-cell">
+        <input
+          type="checkbox"
+          class="visibility-checkbox"
+          data-visible-id="${item.id}"
+          ${item.visible!==false?"checked":""}
+          aria-label="${escapeHtml(item.pointId)}を地図に表示"
+        >
+      </td>
       <td>${tableInput(item.id,"pointId",editableValue(item,"pointId"))}</td>
       <td class="${item.hasAttitude?"status-complete":"status-pending"}">${pointStatus(item)}</td>
       <td>${escapeHtml(item.source)}</td>
@@ -584,6 +599,30 @@ function renderMeasurements(){
   updateDraftState();
 }
 
+pointTableBody.addEventListener("change",event=>{
+  const checkbox=event.target.closest(".visibility-checkbox[data-visible-id]");
+  if(!checkbox)return;
+
+  const id=Number(checkbox.dataset.visibleId);
+  const item=measurements.find(entry=>entry.id===id);
+  if(!item)return;
+
+  item.visible=checkbox.checked;
+
+  if(item.visible){
+    if(item.marker&&!measurementLayer.hasLayer(item.marker)){
+      item.marker.addTo(measurementLayer);
+    }
+  }else{
+    if(item.marker&&measurementLayer.hasLayer(item.marker)){
+      measurementLayer.removeLayer(item.marker);
+    }
+  }
+
+  msg.textContent=`${item.pointId} を地図上で${item.visible?"表示":"非表示"}にしました．`;
+  msg.className="msg success";
+});
+
 pointTableBody.addEventListener("input",event=>{
   const editor=event.target.closest("[data-edit-id][data-field]");
   if(!editor)return;
@@ -606,7 +645,9 @@ pointTableBody.addEventListener("click",event=>{
 
   if(button.dataset.action==="focus"){
     map.setView([item.latitude,item.longitude],Math.max(map.getZoom(),17));
-    item.marker.openPopup();
+    if(item.visible!==false&&item.marker&&measurementLayer.hasLayer(item.marker)){
+      item.marker.openPopup();
+    }
   }
   if(button.dataset.action==="edit")startEditing(item);
   if(button.dataset.action==="delete"){
@@ -768,6 +809,7 @@ function prepareExcelRows(file,workbook){
 
   rows.forEach((row,index)=>{
     const excelRow=index+2;
+
     const pointId=String(getExcelValue(row,["地点番号","point_id","Point ID"])).trim();
     const latRaw=getExcelValue(row,["緯度","latitude","lat"]);
     const lngRaw=getExcelValue(row,["経度","longitude","lon","lng"]);
@@ -780,17 +822,11 @@ function prepareExcelRows(file,workbook){
 
     const isBlank=[pointId,latRaw,lngRaw,rawStrike,rawDip,surveyDate,lithology,structureType,notes]
       .every(value=>String(value??"").trim()==="");
+
     if(isBlank)return;
 
-    const latitude=Number(latRaw);
-    const longitude=Number(lngRaw);
-
-    if(!Number.isFinite(latitude)||latitude<-90||latitude>90){
-      errors.push(`${excelRow}行目．緯度が不正です．`);
-      return;
-    }
-    if(!Number.isFinite(longitude)||longitude<-180||longitude>180){
-      errors.push(`${excelRow}行目．経度が不正です．`);
+    if(!pointId){
+      errors.push(`${excelRow}行目．地点番号が必要です．`);
       return;
     }
 
@@ -802,8 +838,29 @@ function prepareExcelRows(file,workbook){
       return;
     }
 
+    const hasLat=String(latRaw??"").trim()!=="";
+    const hasLng=String(lngRaw??"").trim()!=="";
+
+    let latitude=null;
+    let longitude=null;
+
+    if(hasLat||hasLng){
+      latitude=Number(latRaw);
+      longitude=Number(lngRaw);
+
+      if(!Number.isFinite(latitude)||latitude<-90||latitude>90){
+        errors.push(`${excelRow}行目．緯度が不正です．`);
+        return;
+      }
+
+      if(!Number.isFinite(longitude)||longitude<-180||longitude>180){
+        errors.push(`${excelRow}行目．経度が不正です．`);
+        return;
+      }
+    }
+
     prepared.push({
-      pointId:pointId||`P${String(nextCreatedOrder+prepared.length).padStart(3,"0")}`,
+      pointId,
       latitude,
       longitude,
       source:`Excel．${file.name}`,
@@ -819,14 +876,56 @@ function prepareExcelRows(file,workbook){
   });
 
   if(errors.length>0){
-    throw new Error(`${file.name} の入力エラー．${errors.slice(0,6).join(" ")}${errors.length>6?` ほか${errors.length-6}件．`:""}`);
+    throw new Error(
+      `${file.name} の入力エラー．` +
+      errors.slice(0,8).join(" ") +
+      (errors.length>8?` ほか${errors.length-8}件．`:"")
+    );
   }
 
   return prepared;
 }
 
+function findMatchingPointById(pointId){
+  const key=String(pointId).trim().toLocaleLowerCase("ja");
+
+  return measurements.find(item=>
+    String(item.pointId).trim().toLocaleLowerCase("ja")===key
+  )||null;
+}
+
+function applyExcelRecordToPoint(item,record){
+  if(record.latitude!==null&&record.longitude!==null){
+    item.latitude=record.latitude;
+    item.longitude=record.longitude;
+  }
+
+  item.hasAttitude=record.hasAttitude;
+  item.rawStrike=record.rawStrike;
+  item.rawDip=record.rawDip;
+  item.strike=record.strike;
+  item.dip=record.dip;
+  item.dipDirection=record.dipDirection;
+  item.dipDirectionLabel=record.dipDirectionLabel;
+
+  item.surveyDate=record.surveyDate;
+  item.lithology=record.lithology;
+  item.structureType=record.structureType;
+  item.notes=record.notes;
+
+  item.sourceFile=record.sourceFile;
+  item.sourceType=item.sourceType==="manual"
+    ?"manual+excel"
+    :String(item.sourceType).includes("excel")
+      ?item.sourceType
+      :`${item.sourceType}+excel`;
+
+  rebuildMarker(item);
+}
+
 loadExcelButton.addEventListener("click",async()=>{
   const files=Array.from(excelFilesInput.files||[]);
+
   if(files.length===0){
     msg.textContent="読み込むExcelファイルを選択してください．";
     msg.className="msg error";
@@ -840,29 +939,49 @@ loadExcelButton.addEventListener("click",async()=>{
   }
 
   let importedFileCount=0;
-  let importedPointCount=0;
+  let createdCount=0;
+  let updatedCount=0;
   const bounds=[];
 
-  for(const file of files){
-    try{
+  try{
+    for(const file of files){
       const buffer=await file.arrayBuffer();
       const workbook=XLSX.read(buffer,{type:"array",cellDates:false});
       const prepared=prepareExcelRows(file,workbook);
 
-      prepared.forEach(data=>{
-        const item=createPoint(data);
-        importedPointCount++;
+      for(const record of prepared){
+        const existing=findMatchingPointById(record.pointId);
+
+        if(existing){
+          applyExcelRecordToPoint(existing,record);
+          updatedCount++;
+          bounds.push([existing.latitude,existing.longitude]);
+          continue;
+        }
+
+        if(record.latitude===null||record.longitude===null){
+          throw new Error(
+            `${file.name}．地点番号「${record.pointId}」に対応する既存ポイントがなく，緯度・経度も空欄です．`
+          );
+        }
+
+        const item=createPoint({
+          ...record,
+          visible:true
+        });
+
+        createdCount++;
         bounds.push([item.latitude,item.longitude]);
-      });
+      }
 
       importedFileCount++;
-    }catch(error){
-      console.error(error);
-      msg.textContent=error.message;
-      msg.className="msg error";
-      renderMeasurements();
-      return;
     }
+  }catch(error){
+    console.error(error);
+    msg.textContent=error.message;
+    msg.className="msg error";
+    renderMeasurements();
+    return;
   }
 
   renderMeasurements();
@@ -871,7 +990,11 @@ loadExcelButton.addEventListener("click",async()=>{
     map.fitBounds(bounds,{padding:[30,30],maxZoom:16});
   }
 
-  msg.textContent=`Excel ${importedFileCount}ファイルから${importedPointCount}地点を読み込みました．`;
+  msg.textContent=
+    `Excel ${importedFileCount}ファイルを読み込みました．` +
+    `既存ポイント更新 ${updatedCount}地点．` +
+    `新規作成 ${createdCount}地点．`;
+
   msg.className="msg success";
 });
 
@@ -1033,9 +1156,9 @@ function downloadBlob(filename,blob){
 
 exportCsvButton.addEventListener("click",()=>{
   if(measurements.length===0)return;
-  const header=["point_id","status","source","source_file","source_type","latitude","longitude","raw_strike","raw_dip","strike_azimuth_deg","dip_deg","dip_direction_deg","dip_direction_label","survey_date","lithology","structure_type","notes","gpx_time"];
+  const header=["point_id","visible","status","source","source_file","source_type","latitude","longitude","raw_strike","raw_dip","strike_azimuth_deg","dip_deg","dip_direction_deg","dip_direction_label","survey_date","lithology","structure_type","notes","gpx_time"];
   const rows=getSortedMeasurements().map(item=>[
-    item.pointId,pointStatus(item),item.source,item.sourceFile,item.sourceType,
+    item.pointId,item.visible!==false,pointStatus(item),item.source,item.sourceFile,item.sourceType,
     item.latitude.toFixed(6),item.longitude.toFixed(6),item.rawStrike,item.rawDip,
     item.strike===null?"":item.strike.toFixed(1),
     item.dip===null?"":item.dip.toFixed(1),
@@ -1057,7 +1180,7 @@ exportGeoJsonButton.addEventListener("click",()=>{
       type:"Feature",
       geometry:{type:"Point",coordinates:[item.longitude,item.latitude]},
       properties:{
-        point_id:item.pointId,status:pointStatus(item),source:item.source,source_file:item.sourceFile,source_type:item.sourceType,
+        point_id:item.pointId,visible:item.visible!==false,status:pointStatus(item),source:item.source,source_file:item.sourceFile,source_type:item.sourceType,
         raw_strike:item.rawStrike,raw_dip:item.rawDip,strike_azimuth_deg:item.strike,dip_deg:item.dip,dip_direction_deg:item.dipDirection,
         dip_direction_label:item.dipDirectionLabel,
         survey_date:item.surveyDate,
@@ -1160,7 +1283,7 @@ function buildProjectState(){
   const center=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.9.0",
+    version:"0.10.0",
     savedAt:new Date().toISOString(),
     mapState:{
       center:[center.lat,center.lng],

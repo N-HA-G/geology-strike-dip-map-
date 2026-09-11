@@ -203,3 +203,24 @@ body:not(.locked) .auth-gate{
   font-weight:700;
   text-decoration:none;
 }
+
+
+/* Version 0.10.0．ポイント個別表示チェック． */
+.visibility-cell{
+  text-align:center;
+}
+
+.visibility-checkbox{
+  width:20px;
+  height:20px;
+  min-height:auto;
+  margin:0;
+  cursor:pointer;
+}
+
+th:nth-child(2),
+td:nth-child(2){
+  width:58px;
+  min-width:58px;
+  text-align:center;
+}

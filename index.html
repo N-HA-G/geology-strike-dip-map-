@@ -109,7 +109,7 @@
         <div class="actions">
           <button type="button" id="loadExcel">選択したExcelを読み込む</button>
         </div>
-        <p class="help">「入力テンプレート」シートを読み込みます．複数のExcelファイルも同時に選択できます．</p>
+        <p class="help">地点番号が既存ポイントと一致する場合は，そのポイントへ走向・傾斜や補足情報を反映します．一致しない場合は，Excelに緯度・経度があれば新規ポイントとして追加します．複数ファイルも同時に選択できます．</p>
       </div>
 
       <div class="save-area">
@@ -161,6 +161,7 @@
         <thead>
           <tr>
             <th><button class="sort-button" data-sort="createdOrder">No.</button></th>
+            <th>表示</th>
             <th><button class="sort-button" data-sort="pointId">地点番号</button></th>
             <th><button class="sort-button" data-sort="status">状態</button></th>
             <th><button class="sort-button" data-sort="source">由来</button></th>
@@ -179,7 +180,7 @@
           </tr>
         </thead>
         <tbody id="pointTableBody">
-          <tr><td colspan="16" class="empty">まだポイントはありません．</td></tr>
+          <tr><td colspan="17" class="empty">まだポイントはありません．</td></tr>
         </tbody>
       </table>
     </div>
