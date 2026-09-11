@@ -1231,6 +1231,60 @@ function applyExcelRecordToPoint(item,record){
   rebuildMarker(item);
 }
 
+const EXCEL_FONT_NAME="BIZ UDPGothic";
+
+function applyExcelFontToSheet(sheet,fontName=EXCEL_FONT_NAME){
+  if(!sheet||!sheet["!ref"])return;
+
+  const range=XLSX.utils.decode_range(sheet["!ref"]);
+
+  for(let row=range.s.r;row<=range.e.r;row++){
+    for(let col=range.s.c;col<=range.e.c;col++){
+      const address=XLSX.utils.encode_cell({r:row,c:col});
+      const cell=sheet[address];
+
+      if(!cell)continue;
+
+      cell.s=cell.s||{};
+      cell.s.font={
+        ...(cell.s.font||{}),
+        name:fontName
+      };
+    }
+  }
+}
+
+function styleExcelHeader(sheet,rowNumber=0){
+  if(!sheet||!sheet["!ref"])return;
+
+  const range=XLSX.utils.decode_range(sheet["!ref"]);
+
+  for(let col=range.s.c;col<=range.e.c;col++){
+    const address=XLSX.utils.encode_cell({r:rowNumber,c:col});
+    const cell=sheet[address];
+
+    if(!cell)continue;
+
+    cell.s=cell.s||{};
+    cell.s.font={
+      ...(cell.s.font||{}),
+      name:EXCEL_FONT_NAME,
+      bold:true,
+      color:{rgb:"FFFFFF"}
+    };
+    cell.s.fill={
+      patternType:"solid",
+      fgColor:{rgb:"315B7D"}
+    };
+    cell.s.alignment={
+      ...(cell.s.alignment||{}),
+      horizontal:"center",
+      vertical:"center",
+      wrapText:true
+    };
+  }
+}
+
 function exportCurrentPointsToExcel(){
   if(measurements.length===0){
     msg.textContent="Excelへ書き出すポイントがありません．";
@@ -1274,6 +1328,9 @@ function exportCurrentPointsToExcel(){
 
   const inputSheet=XLSX.utils.aoa_to_sheet([header,...rows]);
 
+  applyExcelFontToSheet(inputSheet);
+  styleExcelHeader(inputSheet,0);
+
   inputSheet["!cols"]=[
     {wch:16},
     {wch:14},
@@ -1296,6 +1353,8 @@ function exportCurrentPointsToExcel(){
   ];
 
   const colorSheet=XLSX.utils.aoa_to_sheet(colorRows);
+  applyExcelFontToSheet(colorSheet);
+  styleExcelHeader(colorSheet,0);
   colorSheet["!cols"]=[{wch:24},{wch:16}];
 
   const guideRows=[
@@ -1311,6 +1370,8 @@ function exportCurrentPointsToExcel(){
   ];
 
   const guideSheet=XLSX.utils.aoa_to_sheet(guideRows);
+  applyExcelFontToSheet(guideSheet);
+  styleExcelHeader(guideSheet,0);
   guideSheet["!cols"]=[{wch:18},{wch:72}];
 
   const workbook=XLSX.utils.book_new();
@@ -1720,7 +1781,7 @@ function buildProjectState(){
   const center=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.11.0",
+    version:"0.11.1",
     savedAt:new Date().toISOString(),
     mapState:{
       center:[center.lat,center.lng],
