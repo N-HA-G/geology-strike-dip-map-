@@ -3,130 +3,133 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>走向・傾斜マップ</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-<header>
-  <h1>走向・傾斜マップ</h1>
-  <p>地理院タイルを用いた構造地質調査データ表示ツール</p>
-</header>
+  <header>
+    <h1>走向・傾斜マップ</h1>
+    <p>地理院タイルを用いた構造地質調査データ表示ツール</p>
+  </header>
 
-<main>
-  <section class="top-layout">
-    <section class="panel input-panel">
-      <h2 id="formTitle">ポイントを追加</h2>
-      <p class="guide">地図をクリックすると緯度・経度が入ります．走向・傾斜を空欄のまま保存すれば，位置だけを先に登録できます．</p>
+  <main class="app-layout">
+    <section class="control-panel" aria-labelledby="input-title">
+      <h2 id="input-title">測定値を追加</h2>
 
-      <form id="pointForm">
-        <label>地点番号<input id="pointId" type="text" value="F001" maxlength="80"></label>
+      <form id="measurement-form">
+        <label>
+          地点番号
+          <input id="point-id" type="text" value="F001" maxlength="30">
+        </label>
 
-        <div class="two">
-          <label>緯度<input id="lat" type="number" step="0.000001" value="34.910884" required></label>
-          <label>経度<input id="lng" type="number" step="0.000001" value="139.824167" required></label>
+        <div class="grid-2">
+          <label>
+            緯度
+            <input
+              id="latitude"
+              type="number"
+              step="0.000001"
+              min="-90"
+              max="90"
+              value="34.910884"
+              required
+            >
+          </label>
+
+          <label>
+            経度
+            <input
+              id="longitude"
+              type="number"
+              step="0.000001"
+              min="-180"
+              max="180"
+              value="139.824167"
+              required
+            >
+          </label>
         </div>
 
-        <label>走向<input id="strikeText" type="text" placeholder="例．N30E"></label>
-        <label>傾斜<input id="dipText" type="text" placeholder="例．45SE"></label>
+        <div class="grid-3">
+          <label>
+            走向（°）
+            <input
+              id="strike"
+              type="number"
+              step="0.1"
+              min="0"
+              max="359.9"
+              value="30"
+              required
+            >
+          </label>
 
-        <p class="help">走向はN30E，N30°E，S20W，030などに対応します．傾斜は45SE，45°NWなどに対応します．</p>
+          <label>
+            傾斜（°）
+            <input
+              id="dip"
+              type="number"
+              step="0.1"
+              min="0"
+              max="90"
+              value="45"
+              required
+            >
+          </label>
 
-        <div class="conversion">
-          <div>変換後の走向．<strong id="outStrike">未入力</strong></div>
-          <div>傾斜角．<strong id="outDip">未入力</strong></div>
-          <div>傾斜方向．<strong id="outDir">未入力</strong></div>
+          <label>
+            傾斜方向（°）
+            <input
+              id="dip-direction"
+              type="number"
+              step="0.1"
+              min="0"
+              max="359.9"
+              value="120"
+              required
+            >
+          </label>
         </div>
 
-        <div id="msg" class="msg" role="status" aria-live="polite"></div>
+        <p class="help">
+          方位角は真北を0°，東90°，南180°，西270°として入力します．
+          今回は変換機能をまだ入れず，数値で直接入力します．
+        </p>
+
+        <div id="validation-message" class="message" role="status" aria-live="polite"></div>
 
         <div class="actions">
-          <button class="primary" id="savePoint" type="submit">ポイントを追加</button>
-          <button id="cancelEdit" type="button" hidden>編集をキャンセル</button>
-          <button id="clearPoints" type="button">全ポイントを削除</button>
+          <button type="submit" class="primary">地図に追加</button>
+          <button type="button" id="clear-points">全地点を削除</button>
         </div>
       </form>
 
-      <div class="summary">登録ポイント数．<strong id="count">0</strong> ／ 走向・傾斜入力済み．<strong id="completeCount">0</strong></div>
-
-      <div class="import-area">
-        <h3>GPX読み込み</h3>
-        <label>GPXファイル
-          <input id="gpxFiles" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" multiple>
-        </label>
-        <div class="actions">
-          <button type="button" id="loadGpx">選択したGPXを読み込む</button>
-          <button type="button" id="clearGpxTracks">GPX軌跡を消去</button>
-        </div>
-        <p class="help">複数ファイルを同時に選択できます．ウェイポイントとルートポイントは編集可能な位置ポイントとして追加し，トラックは軌跡線として表示します．</p>
-        <div id="gpxFileList" class="file-list">読み込んだGPXはありません．</div>
-      </div>
-
-      <div class="save-area">
-        <h3>作業状態の保存と読込</h3>
-        <div class="actions">
-          <button type="button" id="saveProjectJson">作業状態を保存(JSON)</button>
-        </div>
-        <label>保存したJSONを読み込む
-          <input id="loadProjectFile" type="file" accept=".json,application/json">
-        </label>
-        <div class="actions">
-          <button type="button" id="loadProjectJson">作業状態を読込(JSON)</button>
-        </div>
-        <p class="help">ポイント一覧，走向・傾斜，地図表示範囲，GPX軌跡の表示状態をJSONとして保存・再開できます．</p>
-      </div>
-
-      <div class="export-area">
-        <h3>地図の外部出力</h3>
-        <div class="actions">
-          <button type="button" id="exportCsv" disabled>CSV出力</button>
-          <button type="button" id="exportGeoJson" disabled>GeoJSON出力</button>
-          <button type="button" id="exportPng">PNG出力</button>
-          <button type="button" id="exportJpeg">JPEG出力</button>
-          <button type="button" id="exportPdf">PDF出力</button>
-        </div>
-        <p class="help">PNG，JPEG，PDFでは，現在表示中の地図を出力します．スケールバーは残し，ズームボタンと背景切替UIは隠します．</p>
+      <div class="status-line">
+        表示地点数：<strong id="point-count">0</strong>
       </div>
     </section>
 
-    <section class="map-panel"><div id="map"></div></section>
-  </section>
+    <section class="map-panel" aria-label="地図">
+      <div id="map"></div>
+    </section>
+  </main>
 
-  <section class="panel list-panel">
-    <div class="list-heading">
-      <h2>ポイント一覧</h2>
-      <p>列名をクリックすると昇順・降順で並べ替えできます．</p>
-    </div>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th><button class="sort-button" data-sort="createdOrder">No.</button></th>
-            <th><button class="sort-button" data-sort="pointId">地点番号</button></th>
-            <th><button class="sort-button" data-sort="status">状態</button></th>
-            <th><button class="sort-button" data-sort="source">由来</button></th>
-            <th><button class="sort-button" data-sort="latitude">緯度</button></th>
-            <th><button class="sort-button" data-sort="longitude">経度</button></th>
-            <th><button class="sort-button" data-sort="rawStrike">入力走向</button></th>
-            <th><button class="sort-button" data-sort="rawDip">入力傾斜</button></th>
-            <th><button class="sort-button" data-sort="strike">走向方位角</button></th>
-            <th><button class="sort-button" data-sort="dip">傾斜角</button></th>
-            <th><button class="sort-button" data-sort="dipDirection">傾斜方向</button></th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="pointTableBody">
-          <tr><td colspan="12" class="empty">まだポイントはありません．</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-</main>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
