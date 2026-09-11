@@ -181,6 +181,39 @@
 
       <div class="export-area">
         <h3>地図の外部出力</h3>
+
+        <div class="paper-settings">
+          <label>用紙サイズ
+            <select id="paperSize">
+              <option value="A5">A5</option>
+              <option value="A4" selected>A4</option>
+              <option value="A3">A3</option>
+              <option value="B5">B5</option>
+              <option value="B4">B4</option>
+              <option value="Letter">Letter</option>
+            </select>
+          </label>
+
+          <label>向き
+            <select id="paperOrientation">
+              <option value="portrait">縦</option>
+              <option value="landscape" selected>横</option>
+            </select>
+          </label>
+
+          <label>余白(mm)
+            <input id="paperMargin" type="number" min="0" max="40" step="1" value="10">
+          </label>
+
+          <label>画像DPI
+            <select id="imageDpi">
+              <option value="150">150</option>
+              <option value="200">200</option>
+              <option value="300" selected>300</option>
+            </select>
+          </label>
+        </div>
+
         <div class="actions">
           <button type="button" id="exportCsv" disabled>CSV出力</button>
           <button type="button" id="exportGeoJson" disabled>GeoJSON出力</button>
@@ -188,7 +221,11 @@
           <button type="button" id="exportJpeg">JPEG出力</button>
           <button type="button" id="exportPdf">PDF出力</button>
         </div>
-        <p class="help">PNG，JPEG，PDFでは，現在表示中の地図を出力します．スケールバーは残し，ズームボタンと背景切替UIは隠します．</p>
+        <p class="help">
+          PDFは選択した用紙サイズ・向き・余白で出力します．
+          PNG／JPEGは，選択した用紙サイズを基準に，指定したDPIで印刷向けの画像サイズへ変換して出力します．
+          画像そのものはピクセル数で保存されるため，「紙サイズ」はDPIと組み合わせて表現されます．
+        </p>
       </div>
     </section>
 

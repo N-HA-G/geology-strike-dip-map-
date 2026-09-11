@@ -66,6 +66,10 @@ const exportGeoJsonButton=$("exportGeoJson");
 const exportPngButton=$("exportPng");
 const exportJpegButton=$("exportJpeg");
 const exportPdfButton=$("exportPdf");
+const paperSizeInput=$("paperSize");
+const paperOrientationInput=$("paperOrientation");
+const paperMarginInput=$("paperMargin");
+const imageDpiInput=$("imageDpi");
 const mapElement=$("map");
 
 const northArrowElement=document.createElement("div");
@@ -1438,6 +1442,66 @@ function applyExcelRecordToPoint(item,record){
 }
 
 const EXCEL_FONT_NAME="BIZ UDPGothic";
+const PAGE_SIZES_MM={
+  A5:{width:148,height:210},
+  A4:{width:210,height:297},
+  A3:{width:297,height:420},
+  B5:{width:182,height:257},
+  B4:{width:257,height:364},
+  Letter:{width:216,height:279}
+};
+
+function getExportSettings(){
+  const paperSize=paperSizeInput.value in PAGE_SIZES_MM ? paperSizeInput.value : "A4";
+  const orientation=paperOrientationInput.value==="portrait" ? "portrait" : "landscape";
+  const marginMm=Math.min(40,Math.max(0,Number.isFinite(Number(paperMarginInput.value))?Number(paperMarginInput.value):10));
+  const dpi=Number(imageDpiInput.value);
+  const safeDpi=[150,200,300].includes(dpi)?dpi:300;
+  return {paperSize,orientation,marginMm,dpi:safeDpi};
+}
+
+function pageSizeMm(settings){
+  const base=PAGE_SIZES_MM[settings.paperSize]||PAGE_SIZES_MM.A4;
+  return settings.orientation==="landscape"
+    ? {width:base.height,height:base.width}
+    : {width:base.width,height:base.height};
+}
+
+function mmToPx(mm,dpi){
+  return Math.round((mm/25.4)*dpi);
+}
+
+function clampMarginForPage(pageMm,marginMm){
+  const maxAllowed=Math.floor(Math.min(pageMm.width,pageMm.height)/2 - 1);
+  return Math.max(0,Math.min(marginMm,maxAllowed));
+}
+
+async function composePrintCanvas(format="png"){
+  const settings=getExportSettings();
+  const mapCanvas=await captureMapCanvas();
+  const pageMm=pageSizeMm(settings);
+  const marginMm=clampMarginForPage(pageMm,settings.marginMm);
+  const pagePx={width:mmToPx(pageMm.width,settings.dpi),height:mmToPx(pageMm.height,settings.dpi)};
+  const marginPx=mmToPx(marginMm,settings.dpi);
+  const usableWidth=Math.max(1,pagePx.width - marginPx*2);
+  const usableHeight=Math.max(1,pagePx.height - marginPx*2);
+  const ratio=Math.min(usableWidth/mapCanvas.width, usableHeight/mapCanvas.height);
+  const drawWidth=Math.max(1,Math.round(mapCanvas.width*ratio));
+  const drawHeight=Math.max(1,Math.round(mapCanvas.height*ratio));
+  const offsetX=Math.round((pagePx.width-drawWidth)/2);
+  const offsetY=Math.round((pagePx.height-drawHeight)/2);
+
+  const pageCanvas=document.createElement("canvas");
+  pageCanvas.width=pagePx.width;
+  pageCanvas.height=pagePx.height;
+  const ctx=pageCanvas.getContext("2d");
+  ctx.fillStyle="#ffffff";
+  ctx.fillRect(0,0,pageCanvas.width,pageCanvas.height);
+  ctx.drawImage(mapCanvas,offsetX,offsetY,drawWidth,drawHeight);
+
+  return {canvas:pageCanvas,settings,pageMm,pagePx,marginMm,format};
+}
+
 
 function applyExcelFontToSheet(sheet,fontName=EXCEL_FONT_NAME){
   if(!sheet||!sheet["!ref"])return;
@@ -1919,13 +1983,14 @@ async function captureMapCanvas(){
 
 exportPngButton.addEventListener("click",async()=>{
   try{
-    msg.textContent="PNG画像を作成しています．";
+    const settings=getExportSettings();
+    msg.textContent=`PNG画像を作成しています．${settings.paperSize}・${settings.orientation==="landscape"?"横":"縦"}・${settings.dpi}dpi．`;
     msg.className="msg success";
-    const canvas=await captureMapCanvas();
-    canvas.toBlob(blob=>{
+    const result=await composePrintCanvas("png");
+    result.canvas.toBlob(blob=>{
       if(!blob){msg.textContent="PNG画像の生成に失敗しました．";msg.className="msg error";return;}
-      downloadBlob(`strike_dip_map_${timestampText()}.png`,blob);
-      msg.textContent="PNG画像を出力しました．";
+      downloadBlob(`strike_dip_map_${result.settings.paperSize}_${result.settings.orientation}_${result.settings.dpi}dpi_${timestampText()}.png`,blob);
+      msg.textContent=`PNG画像を出力しました．${result.settings.paperSize}・${result.settings.orientation==="landscape"?"横":"縦"}・${result.settings.dpi}dpi．`;
       msg.className="msg success";
     },"image/png");
   }catch(error){
@@ -1937,13 +2002,14 @@ exportPngButton.addEventListener("click",async()=>{
 
 exportJpegButton.addEventListener("click",async()=>{
   try{
-    msg.textContent="JPEG画像を作成しています．";
+    const settings=getExportSettings();
+    msg.textContent=`JPEG画像を作成しています．${settings.paperSize}・${settings.orientation==="landscape"?"横":"縦"}・${settings.dpi}dpi．`;
     msg.className="msg success";
-    const canvas=await captureMapCanvas();
-    canvas.toBlob(blob=>{
+    const result=await composePrintCanvas("jpeg");
+    result.canvas.toBlob(blob=>{
       if(!blob){msg.textContent="JPEG画像の生成に失敗しました．";msg.className="msg error";return;}
-      downloadBlob(`strike_dip_map_${timestampText()}.jpg`,blob);
-      msg.textContent="JPEG画像を出力しました．";
+      downloadBlob(`strike_dip_map_${result.settings.paperSize}_${result.settings.orientation}_${result.settings.dpi}dpi_${timestampText()}.jpg`,blob);
+      msg.textContent=`JPEG画像を出力しました．${result.settings.paperSize}・${result.settings.orientation==="landscape"?"横":"縦"}・${result.settings.dpi}dpi．`;
       msg.className="msg success";
     },"image/jpeg",0.95);
   }catch(error){
@@ -1955,26 +2021,25 @@ exportJpegButton.addEventListener("click",async()=>{
 
 exportPdfButton.addEventListener("click",async()=>{
   try{
-    msg.textContent="PDFを作成しています．";
+    const settings=getExportSettings();
+    msg.textContent=`PDFを作成しています．${settings.paperSize}・${settings.orientation==="landscape"?"横":"縦"}．`;
     msg.className="msg success";
-    const canvas=await captureMapCanvas();
-    const imgData=canvas.toDataURL("image/jpeg",0.95);
+    const mapCanvas=await captureMapCanvas();
+    const imgData=mapCanvas.toDataURL("image/jpeg",0.95);
     const {jsPDF}=window.jspdf;
-    const landscape=canvas.width>=canvas.height;
-    const pdf=new jsPDF({orientation:landscape?"landscape":"portrait",unit:"mm",format:"a4"});
-    const pageW=pdf.internal.pageSize.getWidth();
-    const pageH=pdf.internal.pageSize.getHeight();
-    const margin=10;
-    const usableW=pageW-margin*2;
-    const usableH=pageH-margin*2;
-    const ratio=Math.min(usableW/canvas.width, usableH/canvas.height);
-    const drawW=canvas.width*ratio;
-    const drawH=canvas.height*ratio;
-    const x=(pageW-drawW)/2;
-    const y=(pageH-drawH)/2;
+    const pageMm=pageSizeMm(settings);
+    const marginMm=clampMarginForPage(pageMm,settings.marginMm);
+    const pdf=new jsPDF({orientation:settings.orientation,unit:"mm",format:[pageMm.width,pageMm.height]});
+    const usableW=pageMm.width - marginMm*2;
+    const usableH=pageMm.height - marginMm*2;
+    const ratio=Math.min(usableW/mapCanvas.width, usableH/mapCanvas.height);
+    const drawW=mapCanvas.width*ratio;
+    const drawH=mapCanvas.height*ratio;
+    const x=(pageMm.width-drawW)/2;
+    const y=(pageMm.height-drawH)/2;
     pdf.addImage(imgData,"JPEG",x,y,drawW,drawH);
-    pdf.save(`strike_dip_map_${timestampText()}.pdf`);
-    msg.textContent="PDFを出力しました．";
+    pdf.save(`strike_dip_map_${settings.paperSize}_${settings.orientation}_${timestampText()}.pdf`);
+    msg.textContent=`PDFを出力しました．${settings.paperSize}・${settings.orientation==="landscape"?"横":"縦"}．`;
     msg.className="msg success";
   }catch(error){
     console.error(error);
@@ -1987,7 +2052,7 @@ function buildProjectState(){
   const center=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.12.0",
+    version:"0.13.0",
     savedAt:new Date().toISOString(),
     mapState:{
       center:[center.lat,center.lng],
@@ -2002,6 +2067,7 @@ function buildProjectState(){
       autoDeclutterEnabled,
       declutterGapPx
     },
+    exportSettings:getExportSettings(),
     colorDefinitions:colorDefinitions.map(def=>({...def})),
     nextColorDefinitionId,
     tableDrafts:Array.from(tableDrafts.entries()),
@@ -2170,6 +2236,10 @@ $("loadProjectJson").addEventListener("click",async()=>{
   }
 });
 
+paperSizeInput.value="A4";
+paperOrientationInput.value="landscape";
+paperMarginInput.value="10";
+imageDpiInput.value="300";
 updateSymbolSize(100,false);
 autoDeclutterInput.checked=true;
 declutterGapInput.value="8";
