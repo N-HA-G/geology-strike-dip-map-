@@ -292,3 +292,60 @@ td:nth-child(2){
     grid-template-columns:1fr;
   }
 }
+
+
+/* Version 0.12.0．重なり回避と拡大表示． */
+.inline-control{
+  display:grid;
+  grid-template-columns:minmax(120px,auto) 1fr 64px;
+  gap:8px;
+  align-items:center;
+  margin-bottom:10px;
+}
+
+.inline-control input[type="range"]{
+  min-height:auto;
+  margin:0;
+}
+
+.inline-control output{
+  font-weight:700;
+  text-align:right;
+}
+
+.checkbox-control{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:600;
+  margin:10px 0;
+}
+
+.checkbox-control input[type="checkbox"]{
+  width:20px;
+  height:20px;
+  min-height:auto;
+  margin:0;
+  flex:0 0 auto;
+}
+
+.map-note{
+  margin:5px 0 0;
+  color:#666;
+  font-size:.78rem;
+  line-height:1.4;
+}
+
+.leaflet-zoom-animated{
+  will-change:transform;
+}
+
+@media(max-width:520px){
+  .inline-control{
+    grid-template-columns:1fr;
+  }
+
+  .inline-control output{
+    text-align:left;
+  }
+}

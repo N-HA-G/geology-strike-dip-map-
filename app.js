@@ -1,7 +1,7 @@
-const map=L.map("map").setView([34.93,139.85],12);
+const map=L.map("map",{maxZoom:22}).setView([34.93,139.85],12);
 
 const attribution='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>';
-const tile=url=>L.tileLayer(url,{maxZoom:18,attribution,crossOrigin:true});
+const tile=url=>L.tileLayer(url,{maxNativeZoom:18,maxZoom:22,attribution,crossOrigin:true});
 const standard=tile("https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png");
 const pale=tile("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png");
 const photo=tile("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg");
@@ -10,10 +10,11 @@ const baseLayers={"地理院地図・標準":standard,"地理院地図・淡色"
 let currentBaseLayerName="地理院地図・淡色";
 pale.addTo(map);
 
+const declutterLeaderLayer=L.layerGroup().addTo(map);
 const measurementLayer=L.layerGroup().addTo(map);
 const gpxTrackLayer=L.layerGroup().addTo(map);
 
-L.control.layers(baseLayers,{"GPX軌跡":gpxTrackLayer},{collapsed:false}).addTo(map);
+L.control.layers(baseLayers,{"記号ずらし補助線":declutterLeaderLayer,"GPX軌跡":gpxTrackLayer},{collapsed:false}).addTo(map);
 L.control.scale({position:"bottomleft",imperial:false,maxWidth:140}).addTo(map);
 
 map.on("baselayerchange",event=>{
@@ -37,6 +38,9 @@ const colorGroupInput=$("colorGroup");
 const notesInput=$("notes");
 const symbolSizeInput=$("symbolSize");
 const symbolSizeValue=$("symbolSizeValue");
+const autoDeclutterInput=$("autoDeclutter");
+const declutterGapInput=$("declutterGap");
+const declutterGapValue=$("declutterGapValue");
 const outStrike=$("outStrike");
 const outDip=$("outDip");
 const outDir=$("outDir");
@@ -86,6 +90,9 @@ let editingId=null;
 let sortKey="createdOrder";
 let sortAscending=true;
 let symbolScalePercent=100;
+let autoDeclutterEnabled=true;
+let declutterGapPx=8;
+let declutterUpdateQueued=false;
 const tableDrafts=new Map();
 
 let colorDefinitions=[
@@ -439,6 +446,7 @@ function strikeDipIcon(strike,dip,dipDirection,color="#111111"){
 
 function rebuildAllMeasurementMarkers(){
   measurements.forEach(item=>rebuildMarker(item));
+  scheduleMarkerLayout();
 }
 
 function updateSymbolSize(value,rebuild=true){
@@ -446,11 +454,205 @@ function updateSymbolSize(value,rebuild=true){
   symbolScalePercent=Number.isFinite(parsed)?Math.min(200,Math.max(50,parsed)):100;
   symbolSizeInput.value=String(symbolScalePercent);
   symbolSizeValue.textContent=`${symbolScalePercent}％`;
-  if(rebuild)rebuildAllMeasurementMarkers();
+
+  if(rebuild){
+    rebuildAllMeasurementMarkers();
+  }else{
+    scheduleMarkerLayout();
+  }
+}
+
+function boxesOverlap(a,b){
+  return !(
+    a.right<=b.left ||
+    a.left>=b.right ||
+    a.bottom<=b.top ||
+    a.top>=b.bottom
+  );
+}
+
+function markerCandidateOffsets(symbolSize,gap){
+  const result=[[0,0]];
+
+  // 記号一個分を基本距離とし，外側へリング状に候補を作る．
+  const step=Math.max(20,symbolSize+gap);
+  const directions=16;
+
+  for(let ring=1;ring<=7;ring++){
+    const radius=step*ring;
+
+    for(let index=0;index<directions;index++){
+      const angle=(Math.PI*2*index/directions) - Math.PI/2;
+
+      result.push([
+        Math.cos(angle)*radius,
+        Math.sin(angle)*radius
+      ]);
+    }
+  }
+
+  return result;
+}
+
+function setMarkerToActualPosition(item){
+  if(!item.marker)return;
+
+  item.marker.setLatLng([item.latitude,item.longitude]);
+  item.displayOffsetPx=[0,0];
+}
+
+function updateMarkerLayout(){
+  declutterUpdateQueued=false;
+  declutterLeaderLayer.clearLayers();
+
+  // まず全マーカーを実測位置へ戻す．
+  measurements.forEach(item=>{
+    if(item.marker){
+      setMarkerToActualPosition(item);
+    }
+  });
+
+  if(!autoDeclutterEnabled){
+    return;
+  }
+
+  const occupied=[];
+  const symbolSize=76*(symbolScalePercent/100);
+  const half=symbolSize/2 + declutterGapPx/2;
+  const candidates=markerCandidateOffsets(symbolSize,declutterGapPx);
+
+  const visibleAttitudePoints=measurements
+    .filter(item=>
+      item.hasAttitude &&
+      item.visible!==false &&
+      item.marker &&
+      measurementLayer.hasLayer(item.marker)
+    )
+    .sort((a,b)=>a.createdOrder-b.createdOrder);
+
+  visibleAttitudePoints.forEach(item=>{
+    const actualLatLng=L.latLng(item.latitude,item.longitude);
+    const actualPoint=map.latLngToLayerPoint(actualLatLng);
+
+    let selected=[0,0];
+    let selectedBox=null;
+
+    for(const offset of candidates){
+      const centerX=actualPoint.x+offset[0];
+      const centerY=actualPoint.y+offset[1];
+
+      const box={
+        left:centerX-half,
+        right:centerX+half,
+        top:centerY-half,
+        bottom:centerY+half
+      };
+
+      if(!occupied.some(existing=>boxesOverlap(box,existing))){
+        selected=offset;
+        selectedBox=box;
+        break;
+      }
+    }
+
+    if(!selectedBox){
+      const fallback=candidates[candidates.length-1];
+      selected=fallback;
+
+      const centerX=actualPoint.x+fallback[0];
+      const centerY=actualPoint.y+fallback[1];
+
+      selectedBox={
+        left:centerX-half,
+        right:centerX+half,
+        top:centerY-half,
+        bottom:centerY+half
+      };
+    }
+
+    occupied.push(selectedBox);
+    item.displayOffsetPx=[selected[0],selected[1]];
+
+    if(Math.hypot(selected[0],selected[1])<1){
+      item.marker.setLatLng(actualLatLng);
+      return;
+    }
+
+    const displayPoint=L.point(
+      actualPoint.x+selected[0],
+      actualPoint.y+selected[1]
+    );
+
+    const displayLatLng=map.layerPointToLatLng(displayPoint);
+
+    item.marker.setLatLng(displayLatLng);
+
+    const color=pointSymbolColor(item);
+
+    L.polyline(
+      [actualLatLng,displayLatLng],
+      {
+        color,
+        weight:1.4,
+        opacity:.8,
+        dashArray:"4,3",
+        interactive:false
+      }
+    ).addTo(declutterLeaderLayer);
+
+    L.circleMarker(
+      actualLatLng,
+      {
+        radius:2.5,
+        color,
+        weight:1,
+        fillColor:color,
+        fillOpacity:1,
+        interactive:false
+      }
+    ).addTo(declutterLeaderLayer);
+  });
+}
+
+function scheduleMarkerLayout(){
+  if(declutterUpdateQueued)return;
+
+  declutterUpdateQueued=true;
+
+  requestAnimationFrame(()=>{
+    updateMarkerLayout();
+  });
+}
+
+function updateDeclutterSettings(){
+  autoDeclutterEnabled=autoDeclutterInput.checked;
+
+  const parsedGap=Number(declutterGapInput.value);
+
+  declutterGapPx=Number.isFinite(parsedGap)
+    ?Math.min(40,Math.max(0,parsedGap))
+    :8;
+
+  declutterGapInput.value=String(declutterGapPx);
+  declutterGapValue.textContent=`${declutterGapPx} px`;
+
+  scheduleMarkerLayout();
 }
 
 symbolSizeInput.addEventListener("input",()=>{
   updateSymbolSize(symbolSizeInput.value,true);
+});
+
+autoDeclutterInput.addEventListener("change",()=>{
+  updateDeclutterSettings();
+});
+
+declutterGapInput.addEventListener("input",()=>{
+  updateDeclutterSettings();
+});
+
+map.on("zoomend moveend resize",()=>{
+  scheduleMarkerLayout();
 });
 
 map.on("click",event=>{
@@ -501,6 +703,7 @@ function buildMarker(item){
 function rebuildMarker(item){
   if(item.marker)measurementLayer.removeLayer(item.marker);
   buildMarker(item);
+  scheduleMarkerLayout();
 }
 
 function plainPoint(item){
@@ -852,6 +1055,7 @@ function renderMeasurements(){
 
   updateSortButtons();
   updateDraftState();
+  scheduleMarkerLayout();
 }
 
 pointTableBody.addEventListener("change",event=>{
@@ -873,6 +1077,8 @@ pointTableBody.addEventListener("change",event=>{
       measurementLayer.removeLayer(item.marker);
     }
   }
+
+  scheduleMarkerLayout();
 
   msg.textContent=`${item.pointId} を地図上で${item.visible?"表示":"非表示"}にしました．`;
   msg.className="msg success";
@@ -1781,7 +1987,7 @@ function buildProjectState(){
   const center=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.11.1",
+    version:"0.12.0",
     savedAt:new Date().toISOString(),
     mapState:{
       center:[center.lat,center.lng],
@@ -1792,7 +1998,9 @@ function buildProjectState(){
       sortKey,sortAscending
     },
     displayState:{
-      symbolScalePercent
+      symbolScalePercent,
+      autoDeclutterEnabled,
+      declutterGapPx
     },
     colorDefinitions:colorDefinitions.map(def=>({...def})),
     nextColorDefinitionId,
@@ -1821,6 +2029,7 @@ $("saveProjectJson").addEventListener("click",()=>{
 });
 
 function clearAllState(){
+  declutterLeaderLayer.clearLayers();
   measurementLayer.clearLayers();
   gpxTrackLayer.clearLayers();
   if(temporaryMarker){map.removeLayer(temporaryMarker);temporaryMarker=null;}
@@ -1849,9 +2058,24 @@ function applyProjectState(state){
   }
 
   if(state.displayState){
-    updateSymbolSize(state.displayState.symbolScalePercent??100,false);
+    updateSymbolSize(
+      state.displayState.symbolScalePercent??100,
+      false
+    );
+
+    autoDeclutterInput.checked=
+      state.displayState.autoDeclutterEnabled!==false;
+
+    declutterGapInput.value=String(
+      state.displayState.declutterGapPx??8
+    );
+
+    updateDeclutterSettings();
   }else{
     updateSymbolSize(100,false);
+    autoDeclutterInput.checked=true;
+    declutterGapInput.value="8";
+    updateDeclutterSettings();
   }
 
   if(Array.isArray(state.colorDefinitions)&&state.colorDefinitions.length>0){
@@ -1947,6 +2171,9 @@ $("loadProjectJson").addEventListener("click",async()=>{
 });
 
 updateSymbolSize(100,false);
+autoDeclutterInput.checked=true;
+declutterGapInput.value="8";
+updateDeclutterSettings();
 renderColorDefinitions();
 parseAttitudeInputs(false);
 renderMeasurements();

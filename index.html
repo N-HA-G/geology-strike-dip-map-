@@ -83,12 +83,29 @@
       <div class="summary">登録ポイント数．<strong id="count">0</strong> ／ 走向・傾斜入力済み．<strong id="completeCount">0</strong></div>
 
       <div class="symbol-area">
-        <h3>走向・傾斜マークの大きさ</h3>
-        <div class="symbol-size-row">
+        <h3>走向・傾斜マークの表示</h3>
+
+        <label class="inline-control">
+          <span>マークの大きさ</span>
           <input id="symbolSize" type="range" min="50" max="200" step="10" value="100">
           <output id="symbolSizeValue" for="symbolSize">100％</output>
-        </div>
-        <p class="help">50〜200％で変更できます．地図表示とPNG・JPEG・PDF出力に反映し，作業JSONにも保存します．</p>
+        </label>
+
+        <label class="checkbox-control">
+          <input id="autoDeclutter" type="checkbox" checked>
+          <span>近接する走向・傾斜マークの重なりを自動回避</span>
+        </label>
+
+        <label class="inline-control">
+          <span>記号間の余白</span>
+          <input id="declutterGap" type="range" min="0" max="40" step="2" value="8">
+          <output id="declutterGapValue" for="declutterGap">8 px</output>
+        </label>
+
+        <p class="help">
+          重なり回避では，実際の測定座標は変更せず，記号だけを画面上でずらし，実測地点まで補助線を表示します．
+          大きさと重なり回避設定はPNG・JPEG・PDF出力と作業JSONにも反映します．
+        </p>
       </div>
 
       <div class="color-area">
@@ -175,7 +192,10 @@
       </div>
     </section>
 
-    <section class="map-panel"><div id="map"></div></section>
+    <section class="map-panel">
+        <div id="map"></div>
+        <p class="map-note">最大Zoom 22まで拡大できます．Zoom 19〜22は地理院タイルを拡大表示するオーバーズームです．</p>
+      </section>
   </section>
 
   <section class="panel list-panel">
