@@ -47,6 +47,8 @@ const applyTableChangesButton=$("applyTableChanges");
 const discardTableChangesButton=$("discardTableChanges");
 const draftStatus=$("draftStatus");
 const gpxFilesInput=$("gpxFiles");
+const excelFilesInput=$("excelFiles");
+const loadExcelButton=$("loadExcel");
 const gpxFileList=$("gpxFileList");
 const loadProjectFileInput=$("loadProjectFile");
 const exportCsvButton=$("exportCsv");
@@ -733,6 +735,146 @@ $("clearPoints").addEventListener("click",()=>{
   msg.className="msg";
 });
 
+function getExcelValue(row,names){
+  for(const name of names){
+    if(Object.prototype.hasOwnProperty.call(row,name)){
+      return row[name];
+    }
+  }
+  return "";
+}
+
+function normalizeExcelDate(value){
+  if(value===null||value===undefined||value==="")return "";
+  const text=String(value).trim();
+  const match=text.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+  if(match){
+    return `${match[1]}-${String(match[2]).padStart(2,"0")}-${String(match[3]).padStart(2,"0")}`;
+  }
+  return text;
+}
+
+function prepareExcelRows(file,workbook){
+  const sheetName=workbook.SheetNames.includes("入力テンプレート")
+    ?"入力テンプレート"
+    :workbook.SheetNames[0];
+
+  if(!sheetName)throw new Error(`${file.name} にシートがありません．`);
+
+  const sheet=workbook.Sheets[sheetName];
+  const rows=XLSX.utils.sheet_to_json(sheet,{defval:"",raw:false});
+  const prepared=[];
+  const errors=[];
+
+  rows.forEach((row,index)=>{
+    const excelRow=index+2;
+    const pointId=String(getExcelValue(row,["地点番号","point_id","Point ID"])).trim();
+    const latRaw=getExcelValue(row,["緯度","latitude","lat"]);
+    const lngRaw=getExcelValue(row,["経度","longitude","lon","lng"]);
+    const rawStrike=String(getExcelValue(row,["走向","raw_strike","strike"])).trim();
+    const rawDip=String(getExcelValue(row,["傾斜","raw_dip","dip"])).trim();
+    const surveyDate=normalizeExcelDate(getExcelValue(row,["測定日","survey_date","date"]));
+    const lithology=String(getExcelValue(row,["岩種・地層名","lithology"])).trim();
+    const structureType=String(getExcelValue(row,["面・構造","structure_type","structure"])).trim();
+    const notes=String(getExcelValue(row,["補足情報","notes","note"])).trim();
+
+    const isBlank=[pointId,latRaw,lngRaw,rawStrike,rawDip,surveyDate,lithology,structureType,notes]
+      .every(value=>String(value??"").trim()==="");
+    if(isBlank)return;
+
+    const latitude=Number(latRaw);
+    const longitude=Number(lngRaw);
+
+    if(!Number.isFinite(latitude)||latitude<-90||latitude>90){
+      errors.push(`${excelRow}行目．緯度が不正です．`);
+      return;
+    }
+    if(!Number.isFinite(longitude)||longitude<-180||longitude>180){
+      errors.push(`${excelRow}行目．経度が不正です．`);
+      return;
+    }
+
+    let attitude;
+    try{
+      attitude=parseAttitudePair(rawStrike,rawDip);
+    }catch(error){
+      errors.push(`${excelRow}行目．${error.message}`);
+      return;
+    }
+
+    prepared.push({
+      pointId:pointId||`P${String(nextCreatedOrder+prepared.length).padStart(3,"0")}`,
+      latitude,
+      longitude,
+      source:`Excel．${file.name}`,
+      sourceFile:file.name,
+      sourceType:"excel",
+      ...attitude,
+      surveyDate,
+      lithology,
+      structureType,
+      notes,
+      gpxTime:""
+    });
+  });
+
+  if(errors.length>0){
+    throw new Error(`${file.name} の入力エラー．${errors.slice(0,6).join(" ")}${errors.length>6?` ほか${errors.length-6}件．`:""}`);
+  }
+
+  return prepared;
+}
+
+loadExcelButton.addEventListener("click",async()=>{
+  const files=Array.from(excelFilesInput.files||[]);
+  if(files.length===0){
+    msg.textContent="読み込むExcelファイルを選択してください．";
+    msg.className="msg error";
+    return;
+  }
+
+  if(typeof XLSX==="undefined"){
+    msg.textContent="Excel読込ライブラリを読み込めませんでした．通信環境を確認してください．";
+    msg.className="msg error";
+    return;
+  }
+
+  let importedFileCount=0;
+  let importedPointCount=0;
+  const bounds=[];
+
+  for(const file of files){
+    try{
+      const buffer=await file.arrayBuffer();
+      const workbook=XLSX.read(buffer,{type:"array",cellDates:false});
+      const prepared=prepareExcelRows(file,workbook);
+
+      prepared.forEach(data=>{
+        const item=createPoint(data);
+        importedPointCount++;
+        bounds.push([item.latitude,item.longitude]);
+      });
+
+      importedFileCount++;
+    }catch(error){
+      console.error(error);
+      msg.textContent=error.message;
+      msg.className="msg error";
+      renderMeasurements();
+      return;
+    }
+  }
+
+  renderMeasurements();
+
+  if(bounds.length>0){
+    map.fitBounds(bounds,{padding:[30,30],maxZoom:16});
+  }
+
+  msg.textContent=`Excel ${importedFileCount}ファイルから${importedPointCount}地点を読み込みました．`;
+  msg.className="msg success";
+});
+
 function directChildText(node,localName){
   for(const child of node.children){
     if(child.localName===localName)return child.textContent.trim();
@@ -1018,7 +1160,7 @@ function buildProjectState(){
   const center=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.8.0",
+    version:"0.9.0",
     savedAt:new Date().toISOString(),
     mapState:{
       center:[center.lat,center.lng],

@@ -7,7 +7,18 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="locked">
+<div id="authGate" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+  <form id="authForm" class="auth-card">
+    <h1 id="authTitle">開発中ページ</h1>
+    <p>このページは開発中です．閲覧するにはパスワードを入力してください．</p>
+    <label>パスワード
+      <input id="authPassword" type="password" autocomplete="current-password" required>
+    </label>
+    <div id="authMessage" class="auth-message" role="status" aria-live="polite"></div>
+    <button class="primary" type="submit">開く</button>
+  </form>
+</div>
 <header>
   <h1>走向・傾斜マップ</h1>
   <p>地理院タイルを用いた構造地質調査データ表示ツール</p>
@@ -89,6 +100,18 @@
         <div id="gpxFileList" class="file-list">読み込んだGPXはありません．</div>
       </div>
 
+      <div class="import-area">
+        <h3>Excelテンプレート読み込み</h3>
+        <p class="template-link-row"><a href="strike_dip_import_template.xlsx" download>Excel入力テンプレートをダウンロード</a></p>
+        <label>入力済みExcelファイル
+          <input id="excelFiles" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple>
+        </label>
+        <div class="actions">
+          <button type="button" id="loadExcel">選択したExcelを読み込む</button>
+        </div>
+        <p class="help">「入力テンプレート」シートを読み込みます．複数のExcelファイルも同時に選択できます．</p>
+      </div>
+
       <div class="save-area">
         <h3>作業状態の保存と読込</h3>
         <div class="actions">
@@ -163,9 +186,12 @@
   </section>
 </main>
 
+<script src="config.js"></script>
+<script src="auth.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

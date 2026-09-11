@@ -141,3 +141,65 @@ td:nth-child(14) .table-editor{min-width:180px}
     width:100%;
   }
 }
+
+
+/* Version 0.9.0．開発中の簡易アクセスロック． */
+body.locked > header,
+body.locked > main{
+  visibility:hidden;
+}
+
+.auth-gate{
+  position:fixed;
+  inset:0;
+  z-index:100000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:#f3f5f7;
+}
+
+body:not(.locked) .auth-gate{
+  display:none;
+}
+
+.auth-card{
+  width:min(420px,100%);
+  padding:24px;
+  border:1px solid #bbb;
+  background:#fff;
+}
+
+.auth-card h1{
+  margin:0 0 10px;
+  font-size:1.3rem;
+}
+
+.auth-card p{
+  margin:0 0 16px;
+  line-height:1.6;
+  color:#555;
+}
+
+.auth-message{
+  min-height:1.5em;
+  margin-bottom:8px;
+  color:#9a1d1d;
+  font-size:.88rem;
+}
+
+.template-link-row{
+  margin:0 0 10px;
+}
+
+.template-link-row a{
+  display:inline-block;
+  padding:8px 11px;
+  border:1px solid #315b7d;
+  border-radius:4px;
+  color:#244b69;
+  background:#f4f8fb;
+  font-weight:700;
+  text-decoration:none;
+}
