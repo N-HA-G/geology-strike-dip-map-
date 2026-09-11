@@ -62,14 +62,30 @@
         <div id="gpxFileList" class="file-list">読み込んだGPXはありません．</div>
       </div>
 
+      <div class="save-area">
+        <h3>作業状態の保存と読込</h3>
+        <div class="actions">
+          <button type="button" id="saveProjectJson">作業状態を保存(JSON)</button>
+        </div>
+        <label>保存したJSONを読み込む
+          <input id="loadProjectFile" type="file" accept=".json,application/json">
+        </label>
+        <div class="actions">
+          <button type="button" id="loadProjectJson">作業状態を読込(JSON)</button>
+        </div>
+        <p class="help">ポイント一覧，走向・傾斜，地図表示範囲，GPX軌跡の表示状態をJSONとして保存・再開できます．</p>
+      </div>
+
       <div class="export-area">
-        <h3>外部出力</h3>
+        <h3>地図の外部出力</h3>
         <div class="actions">
           <button type="button" id="exportCsv" disabled>CSV出力</button>
           <button type="button" id="exportGeoJson" disabled>GeoJSON出力</button>
-          <button type="button" id="exportPng">PNG画像出力</button>
+          <button type="button" id="exportPng">PNG出力</button>
+          <button type="button" id="exportJpeg">JPEG出力</button>
+          <button type="button" id="exportPdf">PDF出力</button>
         </div>
-        <p class="help">位置だけのポイントも出力します．走向・傾斜が未入力の場合は該当項目を空欄にします．</p>
+        <p class="help">PNG，JPEG，PDFでは，現在表示中の地図を出力します．スケールバーは残し，ズームボタンと背景切替UIは隠します．</p>
       </div>
     </section>
 
@@ -110,6 +126,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
