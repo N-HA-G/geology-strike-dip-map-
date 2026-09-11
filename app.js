@@ -43,6 +43,9 @@ const msg=$("msg");
 const count=$("count");
 const completeCount=$("completeCount");
 const pointTableBody=$("pointTableBody");
+const applyTableChangesButton=$("applyTableChanges");
+const discardTableChangesButton=$("discardTableChanges");
+const draftStatus=$("draftStatus");
 const gpxFilesInput=$("gpxFiles");
 const gpxFileList=$("gpxFileList");
 const loadProjectFileInput=$("loadProjectFile");
@@ -75,6 +78,7 @@ let editingId=null;
 let sortKey="createdOrder";
 let sortAscending=true;
 let symbolScalePercent=100;
+const tableDrafts=new Map();
 
 let importedGpxFiles=[];
 const importedGpxKeys=new Set();
@@ -386,6 +390,7 @@ pointForm.addEventListener("submit",event=>{
     item.structureType=structureTypeInput.value;
     item.notes=notesInput.value.trim();
     rebuildMarker(item);
+    tableDrafts.delete(item.id);
     if(temporaryMarker){map.removeLayer(temporaryMarker);temporaryMarker=null;}
     renderMeasurements();
     msg.textContent=`${item.pointId} を更新しました．`;
@@ -448,45 +453,147 @@ document.querySelectorAll(".sort-button").forEach(button=>{
 
 const formatNumberOrBlank=value=>Number.isFinite(value)?`${value.toFixed(1)}°`:"";
 
+function editableValue(item,key){
+  const draft=tableDrafts.get(item.id);
+  if(draft&&Object.prototype.hasOwnProperty.call(draft,key)){
+    return draft[key];
+  }
+  return item[key]??"";
+}
+
+function setTableDraft(id,key,value){
+  const current=tableDrafts.get(id)||{};
+  current[key]=value;
+  tableDrafts.set(id,current);
+  updateDraftState();
+}
+
+function updateDraftState(){
+  const count=tableDrafts.size;
+  applyTableChangesButton.disabled=count===0;
+  discardTableChangesButton.disabled=count===0;
+  draftStatus.textContent=count===0
+    ?"未反映の変更なし"
+    :`未反映の変更．${count}地点`;
+  draftStatus.classList.toggle("dirty",count>0);
+}
+
+function tableInput(dataId,field,value,type="text",extra=""){
+  return `<input
+    class="table-editor"
+    data-edit-id="${dataId}"
+    data-field="${field}"
+    type="${type}"
+    value="${escapeHtml(value)}"
+    ${extra}
+  >`;
+}
+
+function tableTextarea(dataId,field,value){
+  return `<textarea
+    class="table-editor table-notes-editor"
+    data-edit-id="${dataId}"
+    data-field="${field}"
+    rows="2"
+  >${escapeHtml(value)}</textarea>`;
+}
+
+function parseAttitudePair(rawStrike,rawDip){
+  const strikeText=String(rawStrike??"").trim();
+  const dipText=String(rawDip??"").trim();
+
+  if(strikeText===""&&dipText===""){
+    return {
+      hasAttitude:false,
+      rawStrike:"",
+      rawDip:"",
+      strike:null,
+      dip:null,
+      dipDirection:null,
+      dipDirectionLabel:""
+    };
+  }
+
+  if(strikeText===""||dipText===""){
+    throw new Error("走向と傾斜は，両方入力するか，両方空欄にしてください．");
+  }
+
+  const strike=parseStrike(strikeText);
+  const dipData=parseDip(dipText,strike);
+
+  return {
+    hasAttitude:true,
+    rawStrike:strikeText,
+    rawDip:dipText,
+    strike,
+    dip:dipData.dip,
+    dipDirection:dipData.dipDirection,
+    dipDirectionLabel:dipData.directionLabel
+  };
+}
+
 function renderMeasurements(){
   count.textContent=String(measurements.length);
   completeCount.textContent=String(measurements.filter(item=>item.hasAttitude).length);
   exportCsvButton.disabled=measurements.length===0;
   exportGeoJsonButton.disabled=measurements.length===0;
   pointTableBody.innerHTML="";
+
   const sorted=getSortedMeasurements();
+
   if(sorted.length===0){
     pointTableBody.innerHTML='<tr><td colspan="16" class="empty">まだポイントはありません．</td></tr>';
     updateSortButtons();
+    updateDraftState();
     return;
   }
+
   sorted.forEach((item,index)=>{
     const row=document.createElement("tr");
+    const draft=tableDrafts.get(item.id);
+    if(draft)row.classList.add("draft-row");
+
     row.innerHTML=`
       <td>${index+1}</td>
-      <td>${escapeHtml(item.pointId)}</td>
+      <td>${tableInput(item.id,"pointId",editableValue(item,"pointId"))}</td>
       <td class="${item.hasAttitude?"status-complete":"status-pending"}">${pointStatus(item)}</td>
       <td>${escapeHtml(item.source)}</td>
-      <td>${item.latitude.toFixed(6)}</td>
-      <td>${item.longitude.toFixed(6)}</td>
-      <td>${escapeHtml(item.rawStrike)}</td>
-      <td>${escapeHtml(item.rawDip)}</td>
+      <td>${tableInput(item.id,"latitude",editableValue(item,"latitude"),"number",'step="0.000001"')}</td>
+      <td>${tableInput(item.id,"longitude",editableValue(item,"longitude"),"number",'step="0.000001"')}</td>
+      <td>${tableInput(item.id,"rawStrike",editableValue(item,"rawStrike"))}</td>
+      <td>${tableInput(item.id,"rawDip",editableValue(item,"rawDip"))}</td>
       <td>${formatNumberOrBlank(item.strike)}</td>
       <td>${formatNumberOrBlank(item.dip)}</td>
       <td>${formatNumberOrBlank(item.dipDirection)}</td>
-      <td>${escapeHtml(item.surveyDate)}</td>
-      <td>${escapeHtml(item.lithology)}</td>
-      <td>${escapeHtml(item.structureType)}</td>
-      <td class="notes-cell" title="${escapeHtml(item.notes)}">${escapeHtml(item.notes)}</td>
+      <td>${tableInput(item.id,"surveyDate",editableValue(item,"surveyDate"),"date")}</td>
+      <td>${tableInput(item.id,"lithology",editableValue(item,"lithology"))}</td>
+      <td>${tableInput(item.id,"structureType",editableValue(item,"structureType"))}</td>
+      <td>${tableTextarea(item.id,"notes",editableValue(item,"notes"))}</td>
       <td><div class="table-actions">
         <button type="button" data-action="focus" data-id="${item.id}">地図へ</button>
-        <button type="button" data-action="edit" data-id="${item.id}">編集</button>
+        <button type="button" data-action="edit" data-id="${item.id}">上のフォームで編集</button>
         <button type="button" class="delete-button" data-action="delete" data-id="${item.id}">削除</button>
       </div></td>`;
+
     pointTableBody.appendChild(row);
   });
+
   updateSortButtons();
+  updateDraftState();
 }
+
+pointTableBody.addEventListener("input",event=>{
+  const editor=event.target.closest("[data-edit-id][data-field]");
+  if(!editor)return;
+
+  const id=Number(editor.dataset.editId);
+  const field=editor.dataset.field;
+
+  setTableDraft(id,field,editor.value);
+
+  const row=editor.closest("tr");
+  if(row)row.classList.add("draft-row");
+});
 
 pointTableBody.addEventListener("click",event=>{
   const button=event.target.closest("button[data-action]");
@@ -503,6 +610,7 @@ pointTableBody.addEventListener("click",event=>{
   if(button.dataset.action==="delete"){
     if(item.marker)measurementLayer.removeLayer(item.marker);
     measurements=measurements.filter(entry=>entry.id!==id);
+    tableDrafts.delete(id);
     if(editingId===id)resetForm();
     renderMeasurements();
     msg.textContent=`${item.pointId} を削除しました．`;
@@ -510,10 +618,115 @@ pointTableBody.addEventListener("click",event=>{
   }
 });
 
+applyTableChangesButton.addEventListener("click",()=>{
+  if(tableDrafts.size===0)return;
+
+  const prepared=[];
+
+  try{
+    for(const [id,draft] of tableDrafts.entries()){
+      const item=measurements.find(entry=>entry.id===id);
+      if(!item)continue;
+
+      const pointId=String(
+        Object.prototype.hasOwnProperty.call(draft,"pointId")
+          ? draft.pointId
+          : item.pointId
+      ).trim()||item.pointId;
+
+      const latitude=Number(
+        Object.prototype.hasOwnProperty.call(draft,"latitude")
+          ? draft.latitude
+          : item.latitude
+      );
+
+      const longitude=Number(
+        Object.prototype.hasOwnProperty.call(draft,"longitude")
+          ? draft.longitude
+          : item.longitude
+      );
+
+      if(!Number.isFinite(latitude)||latitude<-90||latitude>90){
+        throw new Error(`${pointId}．緯度を確認してください．`);
+      }
+
+      if(!Number.isFinite(longitude)||longitude<-180||longitude>180){
+        throw new Error(`${pointId}．経度を確認してください．`);
+      }
+
+      const rawStrike=Object.prototype.hasOwnProperty.call(draft,"rawStrike")
+        ? draft.rawStrike
+        : item.rawStrike;
+
+      const rawDip=Object.prototype.hasOwnProperty.call(draft,"rawDip")
+        ? draft.rawDip
+        : item.rawDip;
+
+      const attitude=parseAttitudePair(rawStrike,rawDip);
+
+      prepared.push({
+        item,
+        values:{
+          pointId,
+          latitude,
+          longitude,
+          ...attitude,
+          surveyDate:String(
+            Object.prototype.hasOwnProperty.call(draft,"surveyDate")
+              ? draft.surveyDate
+              : item.surveyDate
+          ).trim(),
+          lithology:String(
+            Object.prototype.hasOwnProperty.call(draft,"lithology")
+              ? draft.lithology
+              : item.lithology
+          ).trim(),
+          structureType:String(
+            Object.prototype.hasOwnProperty.call(draft,"structureType")
+              ? draft.structureType
+              : item.structureType
+          ).trim(),
+          notes:String(
+            Object.prototype.hasOwnProperty.call(draft,"notes")
+              ? draft.notes
+              : item.notes
+          ).trim()
+        }
+      });
+    }
+  }catch(error){
+    msg.textContent=`一覧の変更を反映できませんでした．${error.message}`;
+    msg.className="msg error";
+    return;
+  }
+
+  prepared.forEach(({item,values})=>{
+    Object.assign(item,values);
+    rebuildMarker(item);
+  });
+
+  const changedCount=tableDrafts.size;
+  tableDrafts.clear();
+
+  renderMeasurements();
+
+  msg.textContent=`一覧の変更を${changedCount}地点へ一括反映しました．`;
+  msg.className="msg success";
+});
+
+discardTableChangesButton.addEventListener("click",()=>{
+  const changedCount=tableDrafts.size;
+  tableDrafts.clear();
+  renderMeasurements();
+  msg.textContent=`未反映の変更${changedCount}地点分を元に戻しました．`;
+  msg.className="msg";
+});
+
 $("clearPoints").addEventListener("click",()=>{
   measurementLayer.clearLayers();
   if(temporaryMarker){map.removeLayer(temporaryMarker);temporaryMarker=null;}
   measurements=[];
+  tableDrafts.clear();
   resetForm();
   renderMeasurements();
   msg.textContent="登録ポイントをすべて削除しました．";
@@ -805,7 +1018,7 @@ function buildProjectState(){
   const center=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.7.0",
+    version:"0.8.0",
     savedAt:new Date().toISOString(),
     mapState:{
       center:[center.lat,center.lng],
@@ -818,6 +1031,7 @@ function buildProjectState(){
     displayState:{
       symbolScalePercent
     },
+    tableDrafts:Array.from(tableDrafts.entries()),
     points:measurements.map(plainPoint),
     gpxFiles:importedGpxFiles.map(file=>({
       name:file.name,
@@ -846,6 +1060,7 @@ function clearAllState(){
   gpxTrackLayer.clearLayers();
   if(temporaryMarker){map.removeLayer(temporaryMarker);temporaryMarker=null;}
   measurements=[];
+  tableDrafts.clear();
   importedGpxFiles=[];
   importedGpxKeys.clear();
   nextInternalId=1;
@@ -869,6 +1084,15 @@ function applyProjectState(state){
   }
 
   (state.points||[]).forEach(point=>createPoint(point));
+
+  (state.tableDrafts||[]).forEach(entry=>{
+    if(Array.isArray(entry)&&entry.length===2){
+      const id=Number(entry[0]);
+      if(measurements.some(item=>item.id===id)){
+        tableDrafts.set(id,entry[1]||{});
+      }
+    }
+  });
 
   importedGpxFiles=(state.gpxFiles||[]).map(file=>({
     name:file.name||"project-track",

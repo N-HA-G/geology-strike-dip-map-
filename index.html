@@ -43,14 +43,7 @@
         </div>
 
         <label>面・構造の種類
-          <select id="structureType">
-            <option value="">未設定</option>
-            <option value="層理面">層理面</option>
-            <option value="亀裂">亀裂</option>
-            <option value="断層面">断層面</option>
-            <option value="スリッケンライン">スリッケンライン</option>
-            <option value="その他">その他</option>
-          </select>
+          <input id="structureType" type="text" placeholder="例．層理面，亀裂，断層面，スリッケンライン">
         </label>
 
         <label>補足情報
@@ -128,8 +121,16 @@
 
   <section class="panel list-panel">
     <div class="list-heading">
-      <h2>ポイント一覧</h2>
-      <p>列名をクリックすると昇順・降順で並べ替えできます．</p>
+      <div>
+        <h2>ポイント一覧</h2>
+        <p>表の入力欄を直接編集できます．複数地点を編集したあと，「一覧の変更を一括反映」でまとめて地図へ反映します．</p>
+      </div>
+
+      <div class="batch-actions">
+        <span id="draftStatus" class="draft-status">未反映の変更なし</span>
+        <button type="button" id="applyTableChanges" class="primary" disabled>一覧の変更を一括反映</button>
+        <button type="button" id="discardTableChanges" disabled>一覧の変更を元に戻す</button>
+      </div>
     </div>
 
     <div class="table-wrap">

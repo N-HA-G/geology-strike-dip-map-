@@ -79,3 +79,65 @@ td.empty{padding:20px;text-align:center;color:#666}
 #map.exporting .north-arrow{
   display:block;
 }
+
+
+/* Version 0.8.0．ポイント一覧の直接編集． */
+.list-heading{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+}
+
+.batch-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.draft-status{
+  font-size:.84rem;
+  color:#555;
+}
+
+.draft-status.dirty{
+  color:#8a5b00;
+  font-weight:700;
+}
+
+tr.draft-row td{
+  background:#fffbea;
+}
+
+.table-editor{
+  min-height:34px;
+  margin:0;
+  padding:5px 7px;
+  border:1px solid #aaa;
+  border-radius:3px;
+  font-size:.82rem;
+}
+
+.table-notes-editor{
+  min-width:240px;
+  min-height:56px;
+  resize:vertical;
+  white-space:normal;
+}
+
+td:nth-child(2) .table-editor{min-width:120px}
+td:nth-child(5) .table-editor,
+td:nth-child(6) .table-editor{min-width:120px}
+td:nth-child(7) .table-editor,
+td:nth-child(8) .table-editor{min-width:100px}
+td:nth-child(12) .table-editor{min-width:130px}
+td:nth-child(13) .table-editor{min-width:160px}
+td:nth-child(14) .table-editor{min-width:180px}
+
+@media(max-width:700px){
+  .batch-actions{
+    width:100%;
+  }
+}
