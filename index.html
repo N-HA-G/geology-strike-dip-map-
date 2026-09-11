@@ -1,135 +1,43 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <title>走向・傾斜マップ</title>
-
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  >
-
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>走向・傾斜マップ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-  <header>
-    <h1>走向・傾斜マップ</h1>
-    <p>地理院タイルを用いた構造地質調査データ表示ツール</p>
-  </header>
-
-  <main class="app-layout">
-    <section class="control-panel" aria-labelledby="input-title">
-      <h2 id="input-title">測定値を追加</h2>
-
-      <form id="measurement-form">
-        <label>
-          地点番号
-          <input id="point-id" type="text" value="F001" maxlength="30">
-        </label>
-
-        <div class="grid-2">
-          <label>
-            緯度
-            <input
-              id="latitude"
-              type="number"
-              step="0.000001"
-              min="-90"
-              max="90"
-              value="34.910884"
-              required
-            >
-          </label>
-
-          <label>
-            経度
-            <input
-              id="longitude"
-              type="number"
-              step="0.000001"
-              min="-180"
-              max="180"
-              value="139.824167"
-              required
-            >
-          </label>
-        </div>
-
-        <div class="grid-3">
-          <label>
-            走向（°）
-            <input
-              id="strike"
-              type="number"
-              step="0.1"
-              min="0"
-              max="359.9"
-              value="30"
-              required
-            >
-          </label>
-
-          <label>
-            傾斜（°）
-            <input
-              id="dip"
-              type="number"
-              step="0.1"
-              min="0"
-              max="90"
-              value="45"
-              required
-            >
-          </label>
-
-          <label>
-            傾斜方向（°）
-            <input
-              id="dip-direction"
-              type="number"
-              step="0.1"
-              min="0"
-              max="359.9"
-              value="120"
-              required
-            >
-          </label>
-        </div>
-
-        <p class="help">
-          方位角は真北を0°，東90°，南180°，西270°として入力します．
-          今回は変換機能をまだ入れず，数値で直接入力します．
-        </p>
-
-        <div id="validation-message" class="message" role="status" aria-live="polite"></div>
-
-        <div class="actions">
-          <button type="submit" class="primary">地図に追加</button>
-          <button type="button" id="clear-points">全地点を削除</button>
-        </div>
-      </form>
-
-      <div class="status-line">
-        表示地点数：<strong id="point-count">0</strong>
-      </div>
-    </section>
-
-    <section class="map-panel" aria-label="地図">
-      <div id="map"></div>
-    </section>
-  </main>
-
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
-
-  <script src="app.js"></script>
+<header><h1>走向・傾斜マップ</h1><p>地理院タイルを用いた構造地質調査データ表示ツール</p></header>
+<main class="app">
+<section class="panel">
+<h2>測定値を追加</h2>
+<p class="guide">地図をクリックすると，その地点の緯度・経度が自動入力されます．</p>
+<form id="form">
+<label>地点番号<input id="pointId" value="F001"></label>
+<div class="two">
+<label>緯度<input id="lat" type="number" step="0.000001" value="34.910884" required></label>
+<label>経度<input id="lng" type="number" step="0.000001" value="139.824167" required></label>
+</div>
+<label>走向<input id="strikeText" value="N30E" placeholder="例．N30E" required></label>
+<label>傾斜<input id="dipText" value="45SE" placeholder="例．45SE" required></label>
+<p class="help">走向はN30E，N30°E，S20W，030などに対応します．傾斜は45SE，45°NWなどに対応します．</p>
+<div class="conversion">
+<div>変換後の走向．<strong id="outStrike">30.0°</strong></div>
+<div>傾斜角．<strong id="outDip">45.0°</strong></div>
+<div>傾斜方向．<strong id="outDir">120.0°</strong></div>
+</div>
+<div id="msg" class="msg"></div>
+<div class="actions">
+<button class="primary" type="submit">地図に追加</button>
+<button type="button" id="clear">全地点を削除</button>
+</div>
+</form>
+<p class="count">表示地点数．<strong id="count">0</strong></p>
+</section>
+<section class="mapWrap"><div id="map"></div></section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
