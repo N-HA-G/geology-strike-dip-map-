@@ -152,7 +152,7 @@
           <label>余白(mm)<input id="paperMargin" type="number" min="0" max="40" step="1" value="10"></label>
           <label>画像DPI<select id="imageDpi"><option>150</option><option>300</option><option>450</option><option>600</option><option>900</option><option>1200</option></select></label>
         </div>
-        <p class="help">900/1200 dpiは非常に大きな画像になります．ブラウザや端末のメモリ上限で失敗する場合があります．</p>
+        <p class="help">900/1200 dpiは非常に大きな画像になります．PNG/JPEGはA3などでCanvas上限を超える場合，真っ白になるのを防ぐため安全な実効DPIへ自動調整します．A3印刷はPDF出力を推奨します．</p>
         <div class="actions export-buttons">
           <button type="button" id="exportCsv" disabled>CSV</button>
           <button type="button" id="exportGeoJson" disabled>GeoJSON</button>
