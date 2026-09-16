@@ -75,17 +75,69 @@ async function captureMapCanvas(dpi=300){
 }
 
 function metadataLines(){
+  const infoLines=outputInfoInput.value
+    .split(/\r?\n/)
+    .map(line=>line.trim())
+    .filter(Boolean);
+
   return [
     outputDateInput.value&&`日付：${outputDateInput.value}`,
     outputAuthorInput.value.trim()&&`作成者・調査名：${outputAuthorInput.value.trim()}`,
-    outputInfoInput.value.trim()
+    ...infoLines
   ].filter(Boolean);
 }
 
 function exportHeaderMm(){
   const title=outputTitleInput.value.trim();
   const meta=metadataLines();
-  return (title||meta.length)?18+(meta.length*5):0;
+  if(!title&&!meta.length)return 0;
+
+  // タイトル約8 mm + メタ情報1行あたり約5 mm + 上下の余裕．
+  return 5+(title?8:0)+(meta.length*5)+3;
+}
+
+async function createPdfHeaderCanvas(widthMm,heightMm,dpi=300){
+  if(heightMm<=0)return null;
+
+  if(document.fonts?.ready){
+    try{await document.fonts.ready;}catch(_){/* ignore */}
+  }
+
+  const widthPx=mmToPx(widthMm,dpi);
+  const heightPx=mmToPx(heightMm,dpi);
+  const canvas=document.createElement("canvas");
+  canvas.width=widthPx;
+  canvas.height=heightPx;
+
+  const ctx=canvas.getContext("2d");
+  if(!ctx)throw new Error("PDF見出し用Canvasを作成できませんでした．");
+
+  ctx.fillStyle="#ffffff";
+  ctx.fillRect(0,0,widthPx,heightPx);
+  ctx.fillStyle="#111111";
+  ctx.textBaseline="top";
+
+  const title=outputTitleInput.value.trim();
+  const meta=metadataLines();
+  const fontFamily='"BIZ UDPGothic","BIZ UDPゴシック","Yu Gothic",Meiryo,sans-serif';
+  const left=mmToPx(0.5,dpi);
+  let y=mmToPx(1,dpi);
+
+  if(title){
+    ctx.font=`700 ${Math.round(14*dpi/72)}px ${fontFamily}`;
+    ctx.fillText(title,left,y);
+    y+=mmToPx(8,dpi);
+  }
+
+  if(meta.length){
+    ctx.font=`400 ${Math.round(9*dpi/72)}px ${fontFamily}`;
+    meta.forEach(line=>{
+      ctx.fillText(String(line),left,y);
+      y+=mmToPx(5,dpi);
+    });
+  }
+
+  return canvas;
 }
 
 async function composePrintCanvas(){
@@ -198,18 +250,17 @@ $("exportPdf").addEventListener("click",async()=>{
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:s.orientation,unit:"mm",format:[page.width,page.height],compress:true});
 
-    if(title){
-      pdf.setFont("helvetica","bold");
-      pdf.setFontSize(14);
-      pdf.text(title,marginMm,marginMm+5);
-    }
-    if(meta.length){
-      pdf.setFont("helvetica","normal");
-      pdf.setFontSize(9);
-      meta.forEach((line,n)=>pdf.text(String(line),marginMm,marginMm+12+n*5));
+    const availableW=Math.max(1,page.width-marginMm*2);
+
+    // jsPDF標準フォント（Helvetica）は日本語グリフを持たないため，
+    // 日本語タイトル・日付・作成者・注記はブラウザCanvasで描画して画像として配置する．
+    // これにより「文字化け」を避けつつ，Web画面と同じ日本語フォント系列を利用できる．
+    if(headerMm>0){
+      const headerCanvas=await createPdfHeaderCanvas(availableW,headerMm,300);
+      const headerData=headerCanvas.toDataURL("image/png");
+      pdf.addImage(headerData,"PNG",marginMm,marginMm,availableW,headerMm,undefined,"FAST");
     }
 
-    const availableW=Math.max(1,page.width-marginMm*2);
     const availableH=Math.max(1,page.height-marginMm*2-headerMm);
     const ratio=Math.min(availableW/mapCanvas.width,availableH/mapCanvas.height);
     const drawW=mapCanvas.width*ratio;
