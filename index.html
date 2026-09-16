@@ -4,278 +4,181 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>走向・傾斜マップ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style-v2.css">
 </head>
 <body class="locked">
 <div id="authGate" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
   <form id="authForm" class="auth-card">
     <h1 id="authTitle">開発中ページ</h1>
     <p>このページは開発中です．閲覧するにはパスワードを入力してください．</p>
-    <label>パスワード
-      <input id="authPassword" type="password" autocomplete="current-password" required>
-    </label>
+    <label>パスワード<input id="authPassword" type="password" autocomplete="current-password" required></label>
     <div id="authMessage" class="auth-message" role="status" aria-live="polite"></div>
     <button class="primary" type="submit">開く</button>
   </form>
 </div>
+
 <header>
-  <h1>走向・傾斜マップ</h1>
-  <p>地理院タイルを用いた構造地質調査データ表示ツール</p>
+  <div>
+    <h1>走向・傾斜マップ</h1>
+    <p>フィールド調査・印刷・QGIS連携用</p>
+  </div>
+  <div class="version">v0.14</div>
 </header>
 
 <main>
   <section class="top-layout">
     <section class="panel input-panel">
       <h2 id="formTitle">ポイントを追加</h2>
-      <p class="guide">地図をクリックすると緯度・経度が入ります．走向・傾斜を空欄のまま保存すれば，位置だけを先に登録できます．</p>
+      <p class="guide">地図をクリックすると座標が入ります．走向・傾斜は未入力でも位置ポイントとして保存できます．</p>
 
       <form id="pointForm">
         <label>地点番号<input id="pointId" type="text" value="F001" maxlength="80"></label>
+        <div class="two">
+          <label>緯度<input id="lat" type="number" step="0.000001" value="36.108429" required></label>
+          <label>経度<input id="lng" type="number" step="0.000001" value="139.362186" required></label>
+        </div>
+        <label>走向<input id="strikeText" type="text" placeholder="例．N30E / 030"></label>
+        <label>傾斜<input id="dipText" type="text" placeholder="例．45SE"></label>
+        <p class="help">走向はN30E，N30°E，S20W，030に対応．傾斜は45SE，45°NWなどに対応します．</p>
 
         <div class="two">
-          <label>緯度<input id="lat" type="number" step="0.000001" value="34.910884" required></label>
-          <label>経度<input id="lng" type="number" step="0.000001" value="139.824167" required></label>
+          <label>測定日<input id="surveyDate" type="date"></label>
+          <label>岩種・地層名<input id="lithology" type="text" placeholder="例．シルト岩，布良層"></label>
         </div>
-
-        <label>走向<input id="strikeText" type="text" placeholder="例．N30E"></label>
-        <label>傾斜<input id="dipText" type="text" placeholder="例．45SE"></label>
-
-        <p class="help">走向はN30E，N30°E，S20W，030などに対応します．傾斜は45SE，45°NWなどに対応します．</p>
-
-        <div class="supplement-grid">
-          <label>測定日
-            <input id="surveyDate" type="date">
-          </label>
-
-          <label>岩種・地層名
-            <input id="lithology" type="text" placeholder="例．シルト岩，布良層">
-          </label>
-        </div>
-
-        <label>面・構造の種類
-          <input id="structureType" type="text" placeholder="例．層理面，亀裂，断層面，スリッケンライン">
-        </label>
-
-        <label>色区分
-          <select id="colorGroup"></select>
-        </label>
-
-        <label>補足情報
-          <textarea id="notes" rows="4" placeholder="露頭の状態，測定条件，写真番号，観察事項などを自由に記録できます．"></textarea>
-        </label>
+        <label>面・構造の種類<input id="structureType" type="text" placeholder="例．層理面，亀裂，断層面，スリッケンライン"></label>
+        <label>色区分<select id="colorGroup"></select></label>
+        <label>補足情報<textarea id="notes" rows="3" placeholder="写真番号，亀裂，ベイン，露頭の状態など"></textarea></label>
 
         <div class="conversion">
-          <div>変換後の走向．<strong id="outStrike">未入力</strong></div>
+          <div>元の走向方位角．<strong id="outStrike">未入力</strong></div>
           <div>傾斜角．<strong id="outDip">未入力</strong></div>
-          <div>傾斜方向．<strong id="outDir">未入力</strong></div>
+          <div>元の傾斜方向．<strong id="outDir">未入力</strong></div>
+          <div>偏角補正後の走向．<strong id="outTrueStrike">―</strong></div>
         </div>
-
         <div id="msg" class="msg" role="status" aria-live="polite"></div>
-
         <div class="actions">
           <button class="primary" id="savePoint" type="submit">ポイントを追加</button>
           <button id="cancelEdit" type="button" hidden>編集をキャンセル</button>
-          <button id="clearPoints" type="button">全ポイントを削除</button>
+          <button id="clearPoints" type="button" class="danger">全ポイントを削除</button>
         </div>
       </form>
 
-      <div class="summary">登録ポイント数．<strong id="count">0</strong> ／ 走向・傾斜入力済み．<strong id="completeCount">0</strong></div>
+      <div class="summary">登録 <strong id="count">0</strong> 地点 ／ 走向・傾斜入力済み <strong id="completeCount">0</strong> 地点</div>
 
-      <div class="symbol-area">
-        <h3>走向・傾斜マークの表示</h3>
+      <section class="subpanel">
+        <h3>表示</h3>
+        <label class="checkbox-control"><input id="showPointId" type="checkbox" checked><span>地点番号を表示（傾斜マークの反対側）</span></label>
+        <label class="checkbox-control"><input id="showDipValue" type="checkbox" checked><span>傾斜角を表示</span></label>
+        <label class="checkbox-control"><input id="showStrikeValue" type="checkbox"><span>走向値を表示</span></label>
+        <label class="checkbox-control"><input id="useCorrectedValues" type="checkbox" checked><span>偏角補正後の方位を地図表示に使用</span></label>
+        <label class="inline-control"><span>マークの大きさ</span><input id="symbolSize" type="range" min="50" max="220" step="10" value="100"><output id="symbolSizeValue">100％</output></label>
+        <label class="checkbox-control"><input id="autoDeclutter" type="checkbox" checked><span>重なりを自動回避</span></label>
+        <label class="inline-control"><span>記号間の余白</span><input id="declutterGap" type="range" min="0" max="50" step="2" value="8"><output id="declutterGapValue">8 px</output></label>
+        <p class="help">重なり回避時も実測座標は変更せず，記号だけをずらして補助線を表示します．</p>
+      </section>
 
-        <label class="inline-control">
-          <span>マークの大きさ</span>
-          <input id="symbolSize" type="range" min="50" max="200" step="10" value="100">
-          <output id="symbolSizeValue" for="symbolSize">100％</output>
-        </label>
+      <section class="subpanel">
+        <h3>偏角補正</h3>
+        <div class="declination-grid">
+          <label>偏角方向<select id="declinationDirection"><option value="W">西偏</option><option value="E">東偏</option></select></label>
+          <label>偏角（°）<input id="declinationValue" type="number" min="0" max="30" step="0.1" value="0"></label>
+        </div>
+        <div class="actions"><button id="applyDeclinationAll" type="button">全地点へ偏角補正を適用</button></div>
+        <p class="help">元データは上書きしません．西偏は負，東偏は正として「真方位＝磁方位＋偏角」で補正値を別保存します．</p>
+      </section>
 
-        <label class="checkbox-control">
-          <input id="autoDeclutter" type="checkbox" checked>
-          <span>近接する走向・傾斜マークの重なりを自動回避</span>
-        </label>
+      <section class="subpanel">
+        <h3>地図表示・ズーム</h3>
+        <label class="inline-control"><span>Zoom</span><input id="zoomSlider" type="range" min="5" max="24" step="0.25" value="16"><output id="zoomValue">16.00</output></label>
+        <p class="help">0.25刻みで細かく調整できます．Zoom 19以降は地理院タイルのオーバーズームです．</p>
+      </section>
 
-        <label class="inline-control">
-          <span>記号間の余白</span>
-          <input id="declutterGap" type="range" min="0" max="40" step="2" value="8">
-          <output id="declutterGapValue" for="declutterGap">8 px</output>
-        </label>
-
-        <p class="help">
-          重なり回避では，実際の測定座標は変更せず，記号だけを画面上でずらし，実測地点まで補助線を表示します．
-          大きさと重なり回避設定はPNG・JPEG・PDF出力と作業JSONにも反映します．
-        </p>
-      </div>
-
-      <div class="color-area">
+      <section class="subpanel color-area">
         <h3>色分け定義</h3>
-
         <div class="color-definition-add">
-          <label>色区分名
-            <input id="newColorName" type="text" placeholder="例．層理面，亀裂，層面すべり面">
-          </label>
-
-          <label>色
-            <input id="newColorValue" type="color" value="#d62728">
-          </label>
-
-          <button type="button" id="addColorDefinition">色区分を追加</button>
+          <label>色区分名<input id="newColorName" type="text" placeholder="例．層理面，亀裂，ベイン"></label>
+          <label>色<input id="newColorValue" type="color" value="#d62728"></label>
+          <button type="button" id="addColorDefinition">追加</button>
         </div>
-
         <div id="colorDefinitionList" class="color-definition-list"></div>
+      </section>
 
-        <p class="help">
-          色区分名と色は自由に定義できます．各ポイントへ色区分を割り当てると，走向・傾斜記号の色に反映します．
-        </p>
-      </div>
-
-      <div class="import-area">
+      <section class="subpanel import-area">
         <h3>GPX読み込み</h3>
-        <label>GPXファイル
-          <input id="gpxFiles" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" multiple>
-        </label>
-        <div class="actions">
-          <button type="button" id="loadGpx">選択したGPXを読み込む</button>
-          <button type="button" id="clearGpxTracks">GPX軌跡を消去</button>
-        </div>
-        <p class="help">複数ファイルを同時に選択できます．ウェイポイントとルートポイントは編集可能な位置ポイントとして追加し，トラックは軌跡線として表示します．</p>
+        <label>GPXファイル<input id="gpxFiles" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" multiple></label>
+        <div class="actions"><button type="button" id="loadGpx">GPXを読み込む</button><button type="button" id="clearGpxTracks">GPX軌跡を消去</button></div>
         <div id="gpxFileList" class="file-list">読み込んだGPXはありません．</div>
-      </div>
+      </section>
 
-      <div class="import-area">
-        <h3>Excelによる一括入力</h3>
+      <section class="subpanel import-area">
+        <h3>Excel一括入力</h3>
+        <div class="actions"><button type="button" id="exportPointExcel" disabled>現在のポイントからExcel作成</button></div>
+        <p class="template-link-row"><a href="strike_dip_import_template.xlsx" download>空のExcel入力テンプレート</a></p>
+        <label>入力済みExcel<input id="excelFiles" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple></label>
+        <div class="actions"><button type="button" id="loadExcel">Excelを読み込む</button></div>
+      </section>
 
-        <div class="actions">
-          <button type="button" id="exportPointExcel" disabled>現在のポイントから入力用Excelを作成</button>
-        </div>
+      <section class="subpanel save-area">
+        <h3>作業状態</h3>
+        <div class="actions"><button type="button" id="saveProjectJson">作業状態を保存(JSON)</button></div>
+        <label>保存JSON<input id="loadProjectFile" type="file" accept=".json,application/json"></label>
+        <div class="actions"><button type="button" id="loadProjectJson">作業状態を読込(JSON)</button></div>
+      </section>
 
-        <p class="help">
-          現在登録されている地点番号と座標をExcelへ書き出します．Excelで走向・傾斜等を入力し，再度読み込むと地点番号で元ポイントへ反映します．
-        </p>
+      <section class="subpanel template-area">
+        <h3>位置・縮尺テンプレート</h3>
+        <label>テンプレート名<input id="viewTemplateName" type="text" placeholder="例．布良_全体_A3"></label>
+        <div class="actions"><button type="button" id="saveViewTemplate">現在の位置・縮尺を保存</button></div>
+        <label>保存済みテンプレート<select id="viewTemplateSelect"><option value="">選択してください</option></select></label>
+        <div class="actions"><button type="button" id="loadViewTemplate">呼び出す</button><button type="button" id="deleteViewTemplate" class="danger">削除</button></div>
+      </section>
 
-        <p class="template-link-row"><a href="strike_dip_import_template.xlsx" download>空のExcel入力テンプレートをダウンロード</a></p>
-
-        <label>入力済みExcelファイル
-          <input id="excelFiles" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple>
-        </label>
-        <div class="actions">
-          <button type="button" id="loadExcel">選択したExcelを読み込む</button>
-        </div>
-        <p class="help">地点番号が既存ポイントと一致する場合は，そのポイントへ走向・傾斜や補足情報を反映します．一致しない場合は，Excelに緯度・経度があれば新規ポイントとして追加します．複数ファイルも同時に選択できます．</p>
-      </div>
-
-      <div class="save-area">
-        <h3>作業状態の保存と読込</h3>
-        <div class="actions">
-          <button type="button" id="saveProjectJson">作業状態を保存(JSON)</button>
-        </div>
-        <label>保存したJSONを読み込む
-          <input id="loadProjectFile" type="file" accept=".json,application/json">
-        </label>
-        <div class="actions">
-          <button type="button" id="loadProjectJson">作業状態を読込(JSON)</button>
-        </div>
-        <p class="help">ポイント一覧，走向・傾斜，地図表示範囲，GPX軌跡の表示状態をJSONとして保存・再開できます．</p>
-      </div>
-
-      <div class="export-area">
-        <h3>地図の外部出力</h3>
+      <section class="subpanel export-area">
+        <h3>外部出力</h3>
+        <label>ファイル名<input id="outputFilename" type="text" value="strike_dip_map"></label>
+        <label>タイトル<input id="outputTitle" type="text" placeholder="例．布良露頭 走向・傾斜分布図"></label>
+        <div class="two"><label>表示日付<input id="outputDate" type="date"></label><label>作成者・調査名<input id="outputAuthor" type="text" placeholder="任意"></label></div>
+        <label>出力情報<textarea id="outputInfo" rows="2" placeholder="調査日，データ範囲，注記など"></textarea></label>
 
         <div class="paper-settings">
-          <label>用紙サイズ
-            <select id="paperSize">
-              <option value="A5">A5</option>
-              <option value="A4" selected>A4</option>
-              <option value="A3">A3</option>
-              <option value="B5">B5</option>
-              <option value="B4">B4</option>
-              <option value="Letter">Letter</option>
-            </select>
-          </label>
-
-          <label>向き
-            <select id="paperOrientation">
-              <option value="portrait">縦</option>
-              <option value="landscape" selected>横</option>
-            </select>
-          </label>
-
-          <label>余白(mm)
-            <input id="paperMargin" type="number" min="0" max="40" step="1" value="10">
-          </label>
-
-          <label>画像DPI
-            <select id="imageDpi">
-              <option value="150">150</option>
-              <option value="200">200</option>
-              <option value="300" selected>300</option>
-            </select>
-          </label>
+          <label>用紙サイズ<select id="paperSize"><option>A5</option><option selected>A4</option><option>A3</option><option>B5</option><option>B4</option><option>Letter</option></select></label>
+          <label>向き<select id="paperOrientation"><option value="portrait">縦</option><option value="landscape" selected>横</option></select></label>
+          <label>余白プリセット<select id="marginPreset"><option value="0">ほぼなし（0 mm）</option><option value="3">極小（3 mm）</option><option value="5">狭い（5 mm）</option><option value="10" selected>標準（10 mm）</option><option value="custom">カスタム</option></select></label>
+          <label>余白(mm)<input id="paperMargin" type="number" min="0" max="40" step="1" value="10"></label>
+          <label>画像DPI<select id="imageDpi"><option>150</option><option>300</option><option>450</option><option>600</option><option>900</option><option>1200</option></select></label>
         </div>
-
-        <div class="actions">
-          <button type="button" id="exportCsv" disabled>CSV出力</button>
-          <button type="button" id="exportGeoJson" disabled>GeoJSON出力</button>
-          <button type="button" id="exportPng">PNG出力</button>
-          <button type="button" id="exportJpeg">JPEG出力</button>
-          <button type="button" id="exportPdf">PDF出力</button>
+        <p class="help">900/1200 dpiは非常に大きな画像になります．ブラウザや端末のメモリ上限で失敗する場合があります．</p>
+        <div class="actions export-buttons">
+          <button type="button" id="exportCsv" disabled>CSV</button>
+          <button type="button" id="exportGeoJson" disabled>GeoJSON</button>
+          <button type="button" id="exportPng">PNG</button>
+          <button type="button" id="exportJpeg">JPEG</button>
+          <button type="button" id="exportPdf">PDF</button>
         </div>
-        <p class="help">
-          PDFは選択した用紙サイズ・向き・余白で出力します．
-          PNG／JPEGは，選択した用紙サイズを基準に，指定したDPIで印刷向けの画像サイズへ変換して出力します．
-          画像そのものはピクセル数で保存されるため，「紙サイズ」はDPIと組み合わせて表現されます．
-        </p>
-      </div>
+      </section>
     </section>
 
     <section class="map-panel">
-        <div id="map"></div>
-        <p class="map-note">最大Zoom 22まで拡大できます．Zoom 19〜22は地理院タイルを拡大表示するオーバーズームです．</p>
-      </section>
+      <div id="map"></div>
+      <p class="map-note">初期位置：立正大学熊谷キャンパス．Zoomは0.25刻み，最大24．</p>
+    </section>
   </section>
 
   <section class="panel list-panel">
     <div class="list-heading">
-      <div>
-        <h2>ポイント一覧</h2>
-        <p>表の入力欄を直接編集できます．複数地点を編集したあと，「一覧の変更を一括反映」でまとめて地図へ反映します．</p>
-      </div>
-
-      <div class="batch-actions">
-        <span id="draftStatus" class="draft-status">未反映の変更なし</span>
-        <button type="button" id="applyTableChanges" class="primary" disabled>一覧の変更を一括反映</button>
-        <button type="button" id="discardTableChanges" disabled>一覧の変更を元に戻す</button>
-      </div>
+      <div><h2>ポイント一覧</h2><p>一覧から表示切替・編集・削除ができます．</p></div>
+      <div class="batch-actions"><span id="draftStatus" class="draft-status">未反映の変更なし</span><button type="button" id="applyTableChanges" class="primary" disabled>一覧の変更を一括反映</button><button type="button" id="discardTableChanges" disabled>元に戻す</button></div>
     </div>
-
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th><button class="sort-button" data-sort="createdOrder">No.</button></th>
-            <th>表示</th>
-            <th><button class="sort-button" data-sort="pointId">地点番号</button></th>
-            <th><button class="sort-button" data-sort="status">状態</button></th>
-            <th><button class="sort-button" data-sort="source">由来</button></th>
-            <th><button class="sort-button" data-sort="latitude">緯度</button></th>
-            <th><button class="sort-button" data-sort="longitude">経度</button></th>
-            <th><button class="sort-button" data-sort="rawStrike">入力走向</button></th>
-            <th><button class="sort-button" data-sort="rawDip">入力傾斜</button></th>
-            <th><button class="sort-button" data-sort="strike">走向方位角</button></th>
-            <th><button class="sort-button" data-sort="dip">傾斜角</button></th>
-            <th><button class="sort-button" data-sort="dipDirection">傾斜方向</button></th>
-            <th><button class="sort-button" data-sort="surveyDate">測定日</button></th>
-            <th><button class="sort-button" data-sort="lithology">岩種・地層名</button></th>
-            <th><button class="sort-button" data-sort="structureType">面・構造</button></th>
-            <th>色区分</th>
-            <th><button class="sort-button" data-sort="notes">補足情報</button></th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="pointTableBody">
-          <tr><td colspan="18" class="empty">まだポイントはありません．</td></tr>
-        </tbody>
+        <thead><tr>
+          <th>No.</th><th>表示</th><th>地点番号</th><th>状態</th><th>由来</th><th>緯度</th><th>経度</th><th>入力走向</th><th>入力傾斜</th><th>元走向°</th><th>補正走向°</th><th>傾斜°</th><th>補正傾斜方向°</th><th>測定日</th><th>岩種・地層名</th><th>面・構造</th><th>色区分</th><th>補足情報</th><th>操作</th>
+        </tr></thead>
+        <tbody id="pointTableBody"><tr><td colspan="19" class="empty">まだポイントはありません．</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -287,6 +190,10 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-<script src="app.js"></script>
+<script src="app-v2-core.js"></script>
+<script src="app-v2-map.js"></script>
+<script src="app-v2-import.js"></script>
+<script src="app-v2-export.js"></script>
+<script src="app-v2-project.js"></script>
 </body>
 </html>
