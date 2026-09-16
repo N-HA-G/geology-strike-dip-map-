@@ -32,7 +32,7 @@ mapElement.appendChild(northArrowElement);
 const pointForm=$("pointForm"),formTitle=$("formTitle"),savePointButton=$("savePoint"),cancelEditButton=$("cancelEdit");
 const pointIdInput=$("pointId"),latInput=$("lat"),lngInput=$("lng"),strikeTextInput=$("strikeText"),dipTextInput=$("dipText"),surveyDateInput=$("surveyDate"),lithologyInput=$("lithology"),structureTypeInput=$("structureType"),colorGroupInput=$("colorGroup"),notesInput=$("notes");
 const outStrike=$("outStrike"),outDip=$("outDip"),outDir=$("outDir"),outTrueStrike=$("outTrueStrike"),msg=$("msg"),count=$("count"),completeCount=$("completeCount"),pointTableBody=$("pointTableBody");
-const showPointIdInput=$("showPointId"),showDipValueInput=$("showDipValue"),showStrikeValueInput=$("showStrikeValue"),useCorrectedValuesInput=$("useCorrectedValues"),symbolSizeInput=$("symbolSize"),symbolSizeValue=$("symbolSizeValue"),autoDeclutterInput=$("autoDeclutter"),declutterGapInput=$("declutterGap"),declutterGapValue=$("declutterGapValue");
+const showPointIdInput=$("showPointId"),pointIdDistanceInput=$("pointIdDistance"),pointIdDistanceValue=$("pointIdDistanceValue"),showDipValueInput=$("showDipValue"),showStrikeValueInput=$("showStrikeValue"),useCorrectedValuesInput=$("useCorrectedValues"),symbolSizeInput=$("symbolSize"),symbolSizeValue=$("symbolSizeValue"),autoDeclutterInput=$("autoDeclutter"),declutterGapInput=$("declutterGap"),declutterGapValue=$("declutterGapValue");
 const declinationDirectionInput=$("declinationDirection"),declinationValueInput=$("declinationValue"),applyDeclinationAllButton=$("applyDeclinationAll");
 const zoomSlider=$("zoomSlider"),zoomValue=$("zoomValue");
 const newColorNameInput=$("newColorName"),newColorValueInput=$("newColorValue"),addColorDefinitionButton=$("addColorDefinition"),colorDefinitionList=$("colorDefinitionList");
@@ -46,7 +46,7 @@ const exportCsvButton=$("exportCsv"),exportGeoJsonButton=$("exportGeoJson"),expo
 let measurements=[];
 let nextInternalId=1,nextCreatedOrder=1,temporaryMarker=null,editingId=null;
 let symbolScalePercent=100,autoDeclutterEnabled=true,declutterGapPx=8,declutterUpdateQueued=false;
-let showPointId=true,showDipValue=true,showStrikeValue=false,useCorrectedValues=true;
+let showPointId=true,pointIdDistancePx=31,showDipValue=true,showStrikeValue=false,useCorrectedValues=true;
 let globalDeclinationSigned=0;
 const tableDrafts=new Map();
 let colorDefinitions=[{id:"default",name:"標準",color:"#111111"}],nextColorDefinitionId=1;
