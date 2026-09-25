@@ -26,7 +26,7 @@
     <h1>走向・傾斜マップ</h1>
     <p>フィールド調査・印刷・QGIS連携用</p>
   </div>
-  <div class="version">v0.14</div>
+  <div class="version">v0.21</div>
 </header>
 
 <main>
@@ -180,6 +180,36 @@
       <div><h2>ポイント一覧</h2><p>一覧から表示切替・編集・削除ができます．</p></div>
       <div class="batch-actions"><span id="draftStatus" class="draft-status">未反映の変更なし</span><button type="button" id="applyTableChanges" class="primary" disabled>一覧の変更を一括反映</button><button type="button" id="discardTableChanges" disabled>元に戻す</button></div>
     </div>
+
+    <section class="bulk-visibility" aria-labelledby="bulkVisibilityTitle">
+      <div class="bulk-visibility-heading">
+        <h3 id="bulkVisibilityTitle">ポイントの一括表示</h3>
+        <span id="bulkVisibilityCount" class="bulk-visibility-count">対象 0地点</span>
+      </div>
+      <div class="bulk-visibility-controls">
+        <label>まとめる項目
+          <select id="bulkVisibilityField">
+            <option value="surveyDate">測定日</option>
+            <option value="sourceFile">由来ファイル</option>
+            <option value="structureType">面・構造</option>
+            <option value="lithology">岩種・地層名</option>
+            <option value="colorGroup">色区分</option>
+          </select>
+        </label>
+        <label>値
+          <select id="bulkVisibilityValue"></select>
+        </label>
+      </div>
+      <div class="actions bulk-visibility-actions">
+        <button type="button" id="showOnlyBulkMatches" class="primary">該当のみ表示</button>
+        <button type="button" id="showBulkMatches">該当を表示</button>
+        <button type="button" id="hideBulkMatches">該当を非表示</button>
+        <button type="button" id="showAllPoints">全て表示</button>
+        <button type="button" id="hideAllPoints">全て非表示</button>
+      </div>
+      <p class="help">例：測定日を選ぶと，その日に測定した地点だけを地図上へまとめて表示できます．由来ファイル，面・構造，岩種・地層名，色区分でも同じ操作ができます．</p>
+    </section>
+
     <div class="table-wrap">
       <table>
         <thead><tr>

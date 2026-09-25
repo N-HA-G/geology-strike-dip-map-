@@ -33,6 +33,91 @@ document.addEventListener("click",event=>{
   else{tableSortKey=key;tableSortAscending=true;}
   renderMeasurements();
 });
+
+const BULK_EMPTY_VALUE="__EMPTY__";
+function bulkFieldLabel(field){
+  return {surveyDate:"測定日",sourceFile:"由来ファイル",structureType:"面・構造",lithology:"岩種・地層名",colorGroup:"色区分"}[field]||field;
+}
+function bulkPointValue(item,field){
+  if(field==="colorGroup")return getColorDefinition(item.colorDefinitionId||"default").name||"";
+  return String(item[field]??"").trim();
+}
+function bulkDisplayValue(value,field){
+  if(value===BULK_EMPTY_VALUE)return "（未設定）";
+  if(field==="surveyDate"&&/^\d{4}-\d{2}-\d{2}$/.test(value))return value.replaceAll("-","/");
+  return value;
+}
+function bulkValuesForField(field){
+  const values=new Set();
+  let hasEmpty=false;
+  measurements.forEach(item=>{
+    const value=bulkPointValue(item,field);
+    if(value)values.add(value); else hasEmpty=true;
+  });
+  const result=[...values].sort((a,b)=>String(a).localeCompare(String(b),"ja",{numeric:true,sensitivity:"base"}));
+  if(hasEmpty)result.push(BULK_EMPTY_VALUE);
+  return result;
+}
+function selectedBulkMatches(){
+  const field=bulkVisibilityFieldInput.value;
+  const selected=bulkVisibilityValueInput.value;
+  if(!selected)return [];
+  return measurements.filter(item=>{
+    const value=bulkPointValue(item,field);
+    return selected===BULK_EMPTY_VALUE?!value:value===selected;
+  });
+}
+function updateBulkVisibilityCount(){
+  const field=bulkVisibilityFieldInput.value;
+  const selected=bulkVisibilityValueInput.value;
+  const matches=selectedBulkMatches();
+  bulkVisibilityCount.textContent=selected
+    ?`${bulkFieldLabel(field)}：${bulkDisplayValue(selected,field)} ／ 対象 ${matches.length}地点`
+    :"対象 0地点";
+  const noSelection=!selected;
+  showOnlyBulkMatchesButton.disabled=noSelection;
+  showBulkMatchesButton.disabled=noSelection;
+  hideBulkMatchesButton.disabled=noSelection;
+}
+function refreshBulkVisibilityValues(preserve=true){
+  if(!bulkVisibilityFieldInput||!bulkVisibilityValueInput)return;
+  const field=bulkVisibilityFieldInput.value||"surveyDate";
+  const previous=preserve?bulkVisibilityValueInput.value:"";
+  const values=bulkValuesForField(field);
+  bulkVisibilityValueInput.innerHTML=values.length
+    ?values.map(value=>`<option value="${escapeHtml(value)}">${escapeHtml(bulkDisplayValue(value,field))}</option>`).join("")
+    :'<option value="">該当データなし</option>';
+  if(previous&&values.includes(previous))bulkVisibilityValueInput.value=previous;
+  updateBulkVisibilityCount();
+}
+function setPointVisibility(item,visible){
+  item.visible=Boolean(visible);
+  if(item.visible){
+    if(item.marker&&!measurementLayer.hasLayer(item.marker))item.marker.addTo(measurementLayer);
+  }else if(item.marker&&measurementLayer.hasLayer(item.marker)){
+    measurementLayer.removeLayer(item.marker);
+  }
+}
+function applyBulkVisibility(mode){
+  const matches=selectedBulkMatches();
+  if(!matches.length&&!["all-show","all-hide"].includes(mode))return;
+  if(mode==="only"){
+    const ids=new Set(matches.map(item=>item.id));
+    measurements.forEach(item=>setPointVisibility(item,ids.has(item.id)));
+  }else if(mode==="show")matches.forEach(item=>setPointVisibility(item,true));
+  else if(mode==="hide")matches.forEach(item=>setPointVisibility(item,false));
+  else if(mode==="all-show")measurements.forEach(item=>setPointVisibility(item,true));
+  else if(mode==="all-hide")measurements.forEach(item=>setPointVisibility(item,false));
+  renderMeasurements();
+  scheduleMarkerLayout();
+}
+bulkVisibilityFieldInput.addEventListener("change",()=>refreshBulkVisibilityValues(false));
+bulkVisibilityValueInput.addEventListener("change",updateBulkVisibilityCount);
+showOnlyBulkMatchesButton.addEventListener("click",()=>applyBulkVisibility("only"));
+showBulkMatchesButton.addEventListener("click",()=>applyBulkVisibility("show"));
+hideBulkMatchesButton.addEventListener("click",()=>applyBulkVisibility("hide"));
+showAllPointsButton.addEventListener("click",()=>applyBulkVisibility("all-show"));
+hideAllPointsButton.addEventListener("click",()=>applyBulkVisibility("all-hide"));
 function temporaryPointIcon(){return L.divIcon({className:"click-point-icon",html:'<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="7" fill="white" stroke="#b00020" stroke-width="2.5"/><circle cx="13" cy="13" r="2.5" fill="#b00020"/></svg>',iconSize:[26,26],iconAnchor:[13,13]});}
 function positionPointIcon(color="#8a5b00"){const c=normalizeHexColor(color,"#8a5b00");return L.divIcon({className:"position-point-icon",html:`<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="7" fill="#fff" stroke="${c}" stroke-width="3"/><circle cx="15" cy="15" r="2.5" fill="${c}"/></svg>`,iconSize:[30,30],iconAnchor:[15,15]});}
 function strikeDipSvg(item,color="#111111"){
@@ -67,10 +152,10 @@ pointForm.addEventListener("submit",e=>{e.preventDefault();const lat=Number(latI
 
 applyDeclinationAllButton.addEventListener("click",()=>{const signed=currentDeclinationSigned();const label=signed<0?`西偏 ${Math.abs(signed)}°`:`東偏 ${signed}°`;if(!confirmAction(`全地点へ ${label} の偏角補正を適用します．元の走向・傾斜は保持されます．`))return;globalDeclinationSigned=signed;measurements.forEach(i=>{i.declinationSigned=signed;if(i.hasAttitude){i.strikeTrue=correctedAzimuth(i.strikeRaw,signed);i.dipDirectionTrue=correctedAzimuth(i.dipDirectionRaw,signed);}});rebuildAllMeasurementMarkers();renderMeasurements();parseAttitudeInputs(false);msg.textContent=`全地点へ ${label} を適用しました．`;msg.className="msg success";});
 
-function renderMeasurements(){count.textContent=String(measurements.length);completeCount.textContent=String(measurements.filter(i=>i.hasAttitude).length);exportCsvButton.disabled=exportGeoJsonButton.disabled=exportPointExcelButton.disabled=measurements.length===0;pointTableBody.innerHTML="";if(!measurements.length){pointTableBody.innerHTML='<tr><td colspan="19" class="empty">まだポイントはありません．</td></tr>';updateDraftState();updateTableSortButtons();return;}getTableSortedMeasurements().forEach((item,index)=>{const draft=tableDrafts.get(item.id)||{};const val=k=>Object.prototype.hasOwnProperty.call(draft,k)?draft[k]:item[k]??"";const row=document.createElement("tr");if(tableDrafts.has(item.id))row.classList.add("draft-row");row.innerHTML=`<td>${index+1}</td><td><input class="visibility-checkbox" type="checkbox" data-visible-id="${item.id}" ${item.visible!==false?"checked":""}></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="pointId" value="${escapeHtml(val("pointId"))}"></td><td>${item.hasAttitude?"入力済み":"未入力"}</td><td>${escapeHtml(item.source)}</td><td><input class="table-editor" type="number" step="0.000001" data-edit-id="${item.id}" data-field="latitude" value="${escapeHtml(val("latitude"))}"></td><td><input class="table-editor" type="number" step="0.000001" data-edit-id="${item.id}" data-field="longitude" value="${escapeHtml(val("longitude"))}"></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="rawStrike" value="${escapeHtml(val("rawStrike"))}"></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="rawDip" value="${escapeHtml(val("rawDip"))}"></td><td>${item.strikeRaw==null?"":item.strikeRaw.toFixed(1)}</td><td>${item.strikeTrue==null?"":item.strikeTrue.toFixed(1)}</td><td>${item.dip==null?"":item.dip.toFixed(1)}</td><td>${item.dipDirectionTrue==null?"":item.dipDirectionTrue.toFixed(1)}</td><td><input class="table-editor" type="date" data-edit-id="${item.id}" data-field="surveyDate" value="${escapeHtml(val("surveyDate"))}"></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="lithology" value="${escapeHtml(val("lithology"))}"></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="structureType" value="${escapeHtml(val("structureType"))}"></td><td><select class="table-editor" data-edit-id="${item.id}" data-field="colorDefinitionId">${colorDefinitions.map(d=>`<option value="${escapeHtml(d.id)}" ${d.id===val("colorDefinitionId")?"selected":""}>${escapeHtml(d.name)}</option>`).join("")}</select></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="notes" value="${escapeHtml(val("notes"))}"></td><td><div class="table-actions"><button data-action="focus" data-id="${item.id}">地図へ</button><button data-action="edit" data-id="${item.id}">編集</button><button class="danger" data-action="delete" data-id="${item.id}">削除</button></div></td>`;pointTableBody.appendChild(row);});updateDraftState();updateTableSortButtons();scheduleMarkerLayout();}
+function renderMeasurements(){count.textContent=String(measurements.length);completeCount.textContent=String(measurements.filter(i=>i.hasAttitude).length);exportCsvButton.disabled=exportGeoJsonButton.disabled=exportPointExcelButton.disabled=measurements.length===0;pointTableBody.innerHTML="";if(!measurements.length){pointTableBody.innerHTML='<tr><td colspan="19" class="empty">まだポイントはありません．</td></tr>';updateDraftState();updateTableSortButtons();refreshBulkVisibilityValues(true);return;}getTableSortedMeasurements().forEach((item,index)=>{const draft=tableDrafts.get(item.id)||{};const val=k=>Object.prototype.hasOwnProperty.call(draft,k)?draft[k]:item[k]??"";const row=document.createElement("tr");if(tableDrafts.has(item.id))row.classList.add("draft-row");row.innerHTML=`<td>${index+1}</td><td><input class="visibility-checkbox" type="checkbox" data-visible-id="${item.id}" ${item.visible!==false?"checked":""}></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="pointId" value="${escapeHtml(val("pointId"))}"></td><td>${item.hasAttitude?"入力済み":"未入力"}</td><td>${escapeHtml(item.source)}</td><td><input class="table-editor" type="number" step="0.000001" data-edit-id="${item.id}" data-field="latitude" value="${escapeHtml(val("latitude"))}"></td><td><input class="table-editor" type="number" step="0.000001" data-edit-id="${item.id}" data-field="longitude" value="${escapeHtml(val("longitude"))}"></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="rawStrike" value="${escapeHtml(val("rawStrike"))}"></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="rawDip" value="${escapeHtml(val("rawDip"))}"></td><td>${item.strikeRaw==null?"":item.strikeRaw.toFixed(1)}</td><td>${item.strikeTrue==null?"":item.strikeTrue.toFixed(1)}</td><td>${item.dip==null?"":item.dip.toFixed(1)}</td><td>${item.dipDirectionTrue==null?"":item.dipDirectionTrue.toFixed(1)}</td><td><input class="table-editor" type="date" data-edit-id="${item.id}" data-field="surveyDate" value="${escapeHtml(val("surveyDate"))}"></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="lithology" value="${escapeHtml(val("lithology"))}"></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="structureType" value="${escapeHtml(val("structureType"))}"></td><td><select class="table-editor" data-edit-id="${item.id}" data-field="colorDefinitionId">${colorDefinitions.map(d=>`<option value="${escapeHtml(d.id)}" ${d.id===val("colorDefinitionId")?"selected":""}>${escapeHtml(d.name)}</option>`).join("")}</select></td><td><input class="table-editor" data-edit-id="${item.id}" data-field="notes" value="${escapeHtml(val("notes"))}"></td><td><div class="table-actions"><button data-action="focus" data-id="${item.id}">地図へ</button><button data-action="edit" data-id="${item.id}">編集</button><button class="danger" data-action="delete" data-id="${item.id}">削除</button></div></td>`;pointTableBody.appendChild(row);});updateDraftState();updateTableSortButtons();refreshBulkVisibilityValues(true);scheduleMarkerLayout();}
 function updateDraftState(){const n=tableDrafts.size;applyTableChangesButton.disabled=discardTableChangesButton.disabled=n===0;draftStatus.textContent=n?`未反映の変更．${n}地点`:"未反映の変更なし";draftStatus.classList.toggle("dirty",n>0);}
 pointTableBody.addEventListener("input",e=>{const x=e.target.closest("[data-edit-id][data-field]");if(!x)return;const id=Number(x.dataset.editId),d=tableDrafts.get(id)||{};d[x.dataset.field]=x.value;tableDrafts.set(id,d);updateDraftState();x.closest("tr")?.classList.add("draft-row");});
-pointTableBody.addEventListener("change",e=>{const v=e.target.closest(".visibility-checkbox[data-visible-id]");if(!v)return;const item=measurements.find(i=>i.id===Number(v.dataset.visibleId));if(!item)return;item.visible=v.checked;if(item.visible){if(item.marker&&!measurementLayer.hasLayer(item.marker))item.marker.addTo(measurementLayer);}else if(item.marker&&measurementLayer.hasLayer(item.marker))measurementLayer.removeLayer(item.marker);scheduleMarkerLayout();});
+pointTableBody.addEventListener("change",e=>{const v=e.target.closest(".visibility-checkbox[data-visible-id]");if(!v)return;const item=measurements.find(i=>i.id===Number(v.dataset.visibleId));if(!item)return;setPointVisibility(item,v.checked);scheduleMarkerLayout();});
 pointTableBody.addEventListener("click",e=>{const b=e.target.closest("button[data-action]");if(!b)return;const item=measurements.find(i=>i.id===Number(b.dataset.id));if(!item)return;if(b.dataset.action==="focus"){map.setView([item.latitude,item.longitude],Math.max(map.getZoom(),17));item.marker?.openPopup();}if(b.dataset.action==="edit")startEditing(item);if(b.dataset.action==="delete"){if(!confirmAction(`地点「${item.pointId}」を削除します．`))return;if(item.marker)measurementLayer.removeLayer(item.marker);measurements=measurements.filter(i=>i.id!==item.id);tableDrafts.delete(item.id);renderMeasurements();}});
 applyTableChangesButton.addEventListener("click",()=>{if(!tableDrafts.size)return;if(!confirmAction(`${tableDrafts.size}地点の一覧変更を反映します．`))return;try{for(const [id,draft] of tableDrafts){const item=measurements.find(i=>i.id===id);if(!item)continue;const rawStrike=Object.prototype.hasOwnProperty.call(draft,"rawStrike")?draft.rawStrike:item.rawStrike,rawDip=Object.prototype.hasOwnProperty.call(draft,"rawDip")?draft.rawDip:item.rawDip,att=parseAttitudePair(rawStrike,rawDip,item.declinationSigned);Object.assign(item,{pointId:String(draft.pointId??item.pointId).trim()||item.pointId,latitude:Number(draft.latitude??item.latitude),longitude:Number(draft.longitude??item.longitude),...att,surveyDate:String(draft.surveyDate??item.surveyDate),lithology:String(draft.lithology??item.lithology),structureType:String(draft.structureType??item.structureType),notes:String(draft.notes??item.notes),colorDefinitionId:String(draft.colorDefinitionId??item.colorDefinitionId)});rebuildMarker(item);}tableDrafts.clear();renderMeasurements();msg.textContent="一覧変更を反映しました．";msg.className="msg success";}catch(error){msg.textContent=error.message;msg.className="msg error";}});
 discardTableChangesButton.addEventListener("click",()=>{if(!tableDrafts.size)return;if(!confirmAction("未反映の一覧変更を破棄します．"))return;tableDrafts.clear();renderMeasurements();});

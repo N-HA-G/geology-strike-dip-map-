@@ -48,3 +48,31 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(0,90,180,.18);bor
 .scale-settings > label:not(.checkbox-control){
   max-width:260px;
 }
+
+
+/* Version 0.21.0．測定日などによるポイント一括表示． */
+.bulk-visibility{
+  margin:10px 0 12px;
+  padding:10px;
+  border:1px solid #d6dce2;
+  background:#f8fafc;
+}
+.bulk-visibility-heading{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:7px;
+}
+.bulk-visibility-heading h3{margin:0;font-size:.96rem}
+.bulk-visibility-count{font-size:.8rem;color:var(--muted);font-weight:700}
+.bulk-visibility-controls{
+  display:grid;
+  grid-template-columns:minmax(150px,220px) minmax(190px,360px);
+  gap:8px;
+  align-items:end;
+}
+.bulk-visibility-controls label{margin-bottom:0}
+.bulk-visibility-actions{margin-top:8px}
+@media(max-width:700px){.bulk-visibility-controls{grid-template-columns:1fr}}

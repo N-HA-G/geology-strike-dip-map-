@@ -38,6 +38,8 @@ const zoomSlider=$("zoomSlider"),zoomValue=$("zoomValue");
 const newColorNameInput=$("newColorName"),newColorValueInput=$("newColorValue"),addColorDefinitionButton=$("addColorDefinition"),colorDefinitionList=$("colorDefinitionList");
 const gpxFilesInput=$("gpxFiles"),excelFilesInput=$("excelFiles"),loadProjectFileInput=$("loadProjectFile"),gpxFileList=$("gpxFileList");
 const applyTableChangesButton=$("applyTableChanges"),discardTableChangesButton=$("discardTableChanges"),draftStatus=$("draftStatus");
+const bulkVisibilityFieldInput=$("bulkVisibilityField"),bulkVisibilityValueInput=$("bulkVisibilityValue"),bulkVisibilityCount=$("bulkVisibilityCount");
+const showOnlyBulkMatchesButton=$("showOnlyBulkMatches"),showBulkMatchesButton=$("showBulkMatches"),hideBulkMatchesButton=$("hideBulkMatches"),showAllPointsButton=$("showAllPoints"),hideAllPointsButton=$("hideAllPoints");
 const paperSizeInput=$("paperSize"),paperOrientationInput=$("paperOrientation"),marginPresetInput=$("marginPreset"),paperMarginInput=$("paperMargin"),imageDpiInput=$("imageDpi"),lockPrintScaleInput=$("lockPrintScale"),outputScaleInput=$("outputScale");
 const outputFilenameInput=$("outputFilename"),outputTitleInput=$("outputTitle"),outputDateInput=$("outputDate"),outputAuthorInput=$("outputAuthor"),outputInfoInput=$("outputInfo");
 const viewTemplateNameInput=$("viewTemplateName"),viewTemplateSelect=$("viewTemplateSelect");
@@ -54,8 +56,11 @@ let importedGpxFiles=[];
 const importedGpxKeys=new Set();
 const gpxColors=["#1f77b4","#d62728","#2ca02c","#9467bd","#ff7f0e","#17becf","#8c564b","#7f7f7f"];
 
+function normalizeGeologyInput(value){
+  return String(value??"").normalize("NFKC").trim();
+}
 function parseStrike(value){
-  const text=String(value).trim().toUpperCase().replaceAll("°","").replace(/\s+/g,"");
+  const text=normalizeGeologyInput(value).toUpperCase().replaceAll("°","").replace(/\s+/g,"");
   if(/^\d+(\.\d+)?$/.test(text)){const n=Number(text);if(n>=0&&n<360)return normalizeAzimuth(n);throw new Error("数字の走向は0°以上360°未満で入力してください．");}
   const m=text.match(/^([NS])(\d+(?:\.\d+)?)([EW])$/); if(!m)throw new Error("走向の形式を確認してください．例．N30E，N30°E，030．");
   const ns=m[1],a=Number(m[2]),ew=m[3]; if(a<0||a>90)throw new Error("四分円表記の角度は0〜90°です．");
@@ -63,7 +68,7 @@ function parseStrike(value){
 }
 const directionAzimuths={N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
 function parseDip(value,strike){
-  const text=String(value).trim().toUpperCase().replaceAll("°","").replace(/\s+/g,"");
+  const text=normalizeGeologyInput(value).toUpperCase().replaceAll("°","").replace(/\s+/g,"");
   const m=text.match(/^(\d+(?:\.\d+)?)(NE|SE|SW|NW|N|E|S|W)$/);if(!m)throw new Error("傾斜の形式を確認してください．例．45SE，45°NW．");
   const dip=Number(m[1]),directionLabel=m[2];if(dip<0||dip>90)throw new Error("傾斜角は0〜90°です．");
   const desired=directionAzimuths[directionLabel],c1=normalizeAzimuth(strike+90),c2=normalizeAzimuth(strike-90);
@@ -71,11 +76,16 @@ function parseDip(value,strike){
 }
 function currentDeclinationSigned(){const v=clamp(Number(declinationValueInput.value)||0,0,30);return declinationDirectionInput.value==="E"?v:-v;}
 function correctedAzimuth(raw,declinationSigned){return raw==null?null:normalizeAzimuth(raw+Number(declinationSigned||0));}
+function isExcludedAttitudeValue(value){
+  const text=normalizeGeologyInput(value).toUpperCase().replace(/\s+/g,"");
+  return ["非採用","除外","未採用","EXCLUDED","N/A","NA","-","―","—"].includes(text);
+}
 function parseAttitudePair(rawStrike,rawDip,declinationSigned=globalDeclinationSigned){
-  const s=String(rawStrike??"").trim(),d=String(rawDip??"").trim();
-  if(!s&&!d)return {hasAttitude:false,rawStrike:"",rawDip:"",strikeRaw:null,dip:null,dipDirectionRaw:null,dipDirectionLabel:"",declinationSigned:Number(declinationSigned||0),strikeTrue:null,dipDirectionTrue:null};
+  const s=String(rawStrike??"").trim(),d=String(rawDip??"").trim(),dec=Number(declinationSigned||0);
+  if(isExcludedAttitudeValue(s))return {hasAttitude:false,rawStrike:s,rawDip:d,strikeRaw:null,dip:null,dipDirectionRaw:null,dipDirectionLabel:"",declinationSigned:dec,strikeTrue:null,dipDirectionTrue:null};
+  if(!s&&!d)return {hasAttitude:false,rawStrike:"",rawDip:"",strikeRaw:null,dip:null,dipDirectionRaw:null,dipDirectionLabel:"",declinationSigned:dec,strikeTrue:null,dipDirectionTrue:null};
   if(!s||!d)throw new Error("走向と傾斜は両方入力するか，両方空欄にしてください．");
-  const strikeRaw=parseStrike(s),dipData=parseDip(d,strikeRaw),dec=Number(declinationSigned||0);
+  const strikeRaw=parseStrike(s),dipData=parseDip(d,strikeRaw);
   return {hasAttitude:true,rawStrike:s,rawDip:d,strikeRaw,dip:dipData.dip,dipDirectionRaw:dipData.dipDirection,dipDirectionLabel:dipData.directionLabel,declinationSigned:dec,strikeTrue:correctedAzimuth(strikeRaw,dec),dipDirectionTrue:correctedAzimuth(dipData.dipDirection,dec)};
 }
 function parseAttitudeInputs(showError=true){
