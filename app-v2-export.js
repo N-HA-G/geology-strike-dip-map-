@@ -17,7 +17,10 @@ function getExportSettings(){
   const orientation=paperOrientationInput.value==="portrait"?"portrait":"landscape";
   const marginMm=clamp(Number(paperMarginInput.value)||0,0,40);
   const requestedDpi=clamp(Number(imageDpiInput.value)||300,150,1200);
-  return {paperSize,orientation,marginMm,dpi:requestedDpi,requestedDpi};
+  const fixedScale=Boolean(lockPrintScaleInput?.checked);
+  const scaleDenominator=clamp(Math.round(Number(outputScaleInput?.value)||1000),100,10000000);
+  if(outputScaleInput)outputScaleInput.value=String(scaleDenominator);
+  return {paperSize,orientation,marginMm,dpi:requestedDpi,requestedDpi,fixedScale,scaleDenominator};
 }
 
 function pageSizeMm(s){
@@ -71,6 +74,47 @@ async function captureMapCanvas(dpi=300){
     return canvas;
   }finally{
     mapElement.classList.remove("exporting");
+  }
+}
+
+// 指定した紙面上の縮尺に合わせて，一時的にLeafletの表示範囲を調整してからキャプチャする．
+// Web Mercatorの地上解像度を緯度で補正し，出力用地図枠の横幅が指定縮尺になるようにする．
+function zoomForGroundResolution(metersPerCssPixel,latitude){
+  const base=156543.03392804097*Math.cos(Number(latitude)*Math.PI/180);
+  return Math.log2(base/Math.max(1e-9,metersPerCssPixel));
+}
+
+async function captureMapCanvasForExport(dpi,mapFrameWidthMm,mapFrameHeightMm,settings){
+  if(!settings.fixedScale){
+    return captureMapCanvas(dpi);
+  }
+
+  const originalCenter=map.getCenter();
+  const originalZoom=map.getZoom();
+  const originalHeight=mapElement.style.height;
+  const originalZoomSnap=map.options.zoomSnap;
+
+  try{
+    const aspect=Math.max(.1,mapFrameWidthMm/Math.max(.1,mapFrameHeightMm));
+    const cssWidth=Math.max(320,mapElement.clientWidth||900);
+    const targetHeight=Math.max(320,Math.round(cssWidth/aspect));
+    mapElement.style.height=`${targetHeight}px`;
+    map.options.zoomSnap=0;
+    map.invalidateSize(false);
+
+    const groundWidthMeters=mapFrameWidthMm*settings.scaleDenominator/1000;
+    const metersPerCssPixel=groundWidthMeters/Math.max(1,mapElement.clientWidth);
+    const targetZoom=clamp(zoomForGroundResolution(metersPerCssPixel,originalCenter.lat),map.getMinZoom(),map.getMaxZoom());
+
+    map.setView(originalCenter,targetZoom,{animate:false});
+    await waitForMapReady();
+    return await captureMapCanvas(dpi);
+  }finally{
+    mapElement.style.height=originalHeight;
+    map.options.zoomSnap=originalZoomSnap;
+    map.invalidateSize(false);
+    map.setView(originalCenter,originalZoom,{animate:false});
+    await waitForMapReady();
   }
 }
 
@@ -178,7 +222,9 @@ async function composePrintCanvas(){
 
   // 地図のキャプチャ自体は過剰に巨大化させない．最終Canvasへ拡大配置する．
   const mapCaptureDpi=Math.min(s.dpi,600);
-  const mapCanvas=await captureMapCanvas(mapCaptureDpi);
+  const mapFrameWidthMm=Math.max(.1,page.width-s.marginMm*2);
+  const mapFrameHeightMm=Math.max(.1,page.height-s.marginMm*2-headerMm);
+  const mapCanvas=await captureMapCanvasForExport(mapCaptureDpi,mapFrameWidthMm,mapFrameHeightMm,s);
   const availableW=Math.max(1,w-margin*2);
   const availableH=Math.max(1,h-margin*2-header);
   const ratio=Math.min(availableW/mapCanvas.width,availableH/mapCanvas.height);
@@ -219,7 +265,8 @@ async function exportRaster(type){
       }
       downloadBlob(`${base}_${r.s.paperSize}_${r.s.orientation}_${r.effectiveDpi}dpi.${ext}`,blob);
       const adjusted=dpiAdjustmentMessage(r);
-      msg.textContent=adjusted||`${r.s.paperSize}・${r.effectiveDpi} dpiで出力しました．`;
+      const scaleText=r.s.fixedScale?`・縮尺 1:${r.s.scaleDenominator.toLocaleString("ja-JP")}`:"";
+      msg.textContent=adjusted||`${r.s.paperSize}・${r.effectiveDpi} dpi${scaleText}で出力しました．`;
       msg.className=adjusted?"msg":"msg success";
     },mime,.95);
   }catch(error){
@@ -246,7 +293,9 @@ $("exportPdf").addEventListener("click",async()=>{
     msg.textContent="PDFを作成しています…";
     msg.className="msg success";
 
-    const mapCanvas=await captureMapCanvas(Math.min(s.requestedDpi,600));
+    const mapFrameWidthMm=Math.max(.1,page.width-marginMm*2);
+    const mapFrameHeightMm=Math.max(.1,page.height-marginMm*2-headerMm);
+    const mapCanvas=await captureMapCanvasForExport(Math.min(s.requestedDpi,600),mapFrameWidthMm,mapFrameHeightMm,s);
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:s.orientation,unit:"mm",format:[page.width,page.height],compress:true});
 
@@ -271,7 +320,8 @@ $("exportPdf").addEventListener("click",async()=>{
     pdf.addImage(imgData,"JPEG",x,y,drawW,drawH,undefined,"FAST");
     pdf.save(`${sanitizeFilename(outputFilenameInput.value)}_${s.paperSize}_${s.orientation}_${timestampText()}.pdf`);
 
-    msg.textContent=`${s.paperSize} PDFを出力しました．PDFは巨大Canvasを作らない方式で出力しています．`;
+    const scaleText=s.fixedScale?` 縮尺 1:${s.scaleDenominator.toLocaleString("ja-JP")}．`:"";
+    msg.textContent=`${s.paperSize} PDFを出力しました．${scaleText}PDFは巨大Canvasを作らない方式で出力しています．`;
     msg.className="msg success";
   }catch(error){
     console.error(error);

@@ -38,7 +38,7 @@ const zoomSlider=$("zoomSlider"),zoomValue=$("zoomValue");
 const newColorNameInput=$("newColorName"),newColorValueInput=$("newColorValue"),addColorDefinitionButton=$("addColorDefinition"),colorDefinitionList=$("colorDefinitionList");
 const gpxFilesInput=$("gpxFiles"),excelFilesInput=$("excelFiles"),loadProjectFileInput=$("loadProjectFile"),gpxFileList=$("gpxFileList");
 const applyTableChangesButton=$("applyTableChanges"),discardTableChangesButton=$("discardTableChanges"),draftStatus=$("draftStatus");
-const paperSizeInput=$("paperSize"),paperOrientationInput=$("paperOrientation"),marginPresetInput=$("marginPreset"),paperMarginInput=$("paperMargin"),imageDpiInput=$("imageDpi");
+const paperSizeInput=$("paperSize"),paperOrientationInput=$("paperOrientation"),marginPresetInput=$("marginPreset"),paperMarginInput=$("paperMargin"),imageDpiInput=$("imageDpi"),lockPrintScaleInput=$("lockPrintScale"),outputScaleInput=$("outputScale");
 const outputFilenameInput=$("outputFilename"),outputTitleInput=$("outputTitle"),outputDateInput=$("outputDate"),outputAuthorInput=$("outputAuthor"),outputInfoInput=$("outputInfo");
 const viewTemplateNameInput=$("viewTemplateName"),viewTemplateSelect=$("viewTemplateSelect");
 const exportCsvButton=$("exportCsv"),exportGeoJsonButton=$("exportGeoJson"),exportPointExcelButton=$("exportPointExcel");

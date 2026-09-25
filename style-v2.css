@@ -34,3 +34,17 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(0,90,180,.18);bor
 .table-sort-button:hover{background:#e7eef5}
 .table-sort-button.active{color:var(--accent);background:#eaf2f8}
 .sort-indicator{display:inline-block;margin-left:5px;min-width:1em;text-align:center}
+
+/* Version 0.19.0．出力縮尺固定・テンプレート保存． */
+.scale-settings{
+  margin:10px 0 12px;
+  padding:10px;
+  border:1px solid #d4d8dc;
+  background:#fafafa;
+}
+.scale-settings .checkbox-control{
+  margin-top:0;
+}
+.scale-settings > label:not(.checkbox-control){
+  max-width:260px;
+}

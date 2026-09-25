@@ -132,7 +132,7 @@
 
       <section class="subpanel template-area">
         <h3>位置・縮尺テンプレート</h3>
-        <label>テンプレート名<input id="viewTemplateName" type="text" placeholder="例．布良_全体_A3"></label>
+        <label>テンプレート名<input id="viewTemplateName" type="text" placeholder="例．全体図_A3"></label>
         <div class="actions"><button type="button" id="saveViewTemplate">現在の位置・縮尺を保存</button></div>
         <label>保存済みテンプレート<select id="viewTemplateSelect"><option value="">選択してください</option></select></label>
         <div class="actions"><button type="button" id="loadViewTemplate">呼び出す</button><button type="button" id="deleteViewTemplate" class="danger">削除</button></div>
@@ -141,9 +141,15 @@
       <section class="subpanel export-area">
         <h3>外部出力</h3>
         <label>ファイル名<input id="outputFilename" type="text" value="strike_dip_map"></label>
-        <label>タイトル<input id="outputTitle" type="text" placeholder="例．布良露頭 走向・傾斜分布図"></label>
+        <label>タイトル<input id="outputTitle" type="text" placeholder="例．走向・傾斜分布図"></label>
         <div class="two"><label>表示日付<input id="outputDate" type="date"></label><label>作成者・調査名<input id="outputAuthor" type="text" placeholder="任意"></label></div>
         <label>出力情報<textarea id="outputInfo" rows="2" placeholder="調査日，データ範囲，注記など"></textarea></label>
+
+        <div class="scale-settings">
+          <label class="checkbox-control"><input id="lockPrintScale" type="checkbox"><span>出力縮尺を固定</span></label>
+          <label>出力縮尺 1:<input id="outputScale" type="number" min="100" max="10000000" step="100" value="1000"></label>
+          <p class="help">ONにすると，PDF・PNG・JPEGを指定縮尺で出力します．位置・縮尺テンプレートにもこの値を保存します．</p>
+        </div>
 
         <div class="paper-settings">
           <label>用紙サイズ<select id="paperSize"><option>A5</option><option selected>A4</option><option>A3</option><option>B5</option><option>B4</option><option>Letter</option></select></label>
