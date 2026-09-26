@@ -26,7 +26,7 @@
     <h1>走向・傾斜マップ</h1>
     <p>フィールド調査・印刷・QGIS連携用</p>
   </div>
-  <div class="version">v0.21</div>
+  <div class="version">v0.23</div>
 </header>
 
 <main>
@@ -96,6 +96,47 @@
         <h3>地図表示・ズーム</h3>
         <label class="inline-control"><span>Zoom</span><input id="zoomSlider" type="range" min="5" max="24" step="0.25" value="16"><output id="zoomValue">16.00</output></label>
         <p class="help">0.25刻みで細かく調整できます．Zoom 19以降は地理院タイルのオーバーズームです．</p>
+      </section>
+
+      <section class="subpanel line-drawing-area">
+        <h3>地質解釈線の書き込み</h3>
+        <p class="help">褶曲軸・背斜軸・向斜軸・地質境界・断層などを，地図上へ手動で折れ線として描けます．描画中は地図をクリックするたびに頂点を追加します．</p>
+        <div class="two">
+          <label>線の種類
+            <select id="lineType">
+              <option value="fold-axis">褶曲軸</option>
+              <option value="anticline-axis">背斜軸</option>
+              <option value="syncline-axis">向斜軸</option>
+              <option value="geologic-contact">地質境界</option>
+              <option value="fault">断層</option>
+              <option value="note-line">任意線</option>
+            </select>
+          </label>
+          <label>線名<input id="lineName" type="text" placeholder="例．F1，向斜軸A，地層境界1"></label>
+        </div>
+        <div class="line-style-grid">
+          <label>確度<select id="lineCertainty"><option value="confirmed">確認</option><option value="inferred">推定</option></select></label>
+          <label>線種<select id="lineStyle"><option value="solid">実線</option><option value="dashed">破線</option><option value="dotted">点線</option></select></label>
+          <label>色<input id="lineColor" type="color" value="#c62828"></label>
+          <label>太さ(px)<input id="lineWidth" type="number" min="1" max="10" step="0.5" value="3"></label>
+        </div>
+        <label>補足情報<textarea id="lineNotes" rows="2" placeholder="褶曲軸候補，確認根拠，地質境界の特徴など"></textarea></label>
+        <label class="checkbox-control"><input id="showLineLabels" type="checkbox" checked><span>線名を地図上に表示</span></label>
+        <div class="actions line-draw-actions">
+          <button type="button" id="startLineDrawing" class="primary">線を描き始める</button>
+          <button type="button" id="finishLineDrawing" disabled>線を確定</button>
+          <button type="button" id="undoLineVertex" disabled>1頂点戻す</button>
+          <button type="button" id="cancelLineDrawing" disabled>描画取消</button>
+        </div>
+        <div class="actions line-edit-actions">
+          <button type="button" id="updateSelectedLine" disabled>選択線の属性を更新</button>
+          <button type="button" id="finishLineEdit" disabled>頂点編集を終了</button>
+          <button type="button" id="exportLineGeoJson" disabled>線GeoJSON</button>
+          <button type="button" id="clearInterpretationLines" class="danger">全ての線を削除</button>
+        </div>
+        <div id="lineStatus" class="line-status">待機中</div>
+        <div id="lineList" class="interpretation-line-list"><div class="line-list-empty">まだ線はありません．</div></div>
+        <p class="help">頂点編集：線一覧の「頂点編集」を押すと各頂点にハンドルが出ます．ドラッグで位置を修正できます．作業JSONに保存され，線GeoJSONはQGISへそのまま読み込めます．</p>
       </section>
 
       <section class="subpanel color-area">
@@ -229,6 +270,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="app-v2-core.js"></script>
 <script src="app-v2-map.js"></script>
+<script src="app-v2-lines.js"></script>
 <script src="app-v2-import.js"></script>
 <script src="app-v2-export.js"></script>
 <script src="app-v2-project.js"></script>

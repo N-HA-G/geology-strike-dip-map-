@@ -57,6 +57,10 @@ async function waitForMapReady(){
 
 async function captureMapCanvas(dpi=300){
   map.closePopup();
+  const hadDraftLayer=typeof interpretationDraftLayer!=="undefined"&&map.hasLayer(interpretationDraftLayer);
+  const hadEditLayer=typeof interpretationEditLayer!=="undefined"&&map.hasLayer(interpretationEditLayer);
+  if(hadDraftLayer)map.removeLayer(interpretationDraftLayer);
+  if(hadEditLayer)map.removeLayer(interpretationEditLayer);
   mapElement.classList.add("exporting");
   await waitForMapReady();
   try{
@@ -74,6 +78,8 @@ async function captureMapCanvas(dpi=300){
     return canvas;
   }finally{
     mapElement.classList.remove("exporting");
+    if(hadDraftLayer&&!map.hasLayer(interpretationDraftLayer))interpretationDraftLayer.addTo(map);
+    if(hadEditLayer&&!map.hasLayer(interpretationEditLayer))interpretationEditLayer.addTo(map);
   }
 }
 

@@ -76,3 +76,64 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(0,90,180,.18);bor
 .bulk-visibility-controls label{margin-bottom:0}
 .bulk-visibility-actions{margin-top:8px}
 @media(max-width:700px){.bulk-visibility-controls{grid-template-columns:1fr}}
+
+/* Version 0.23.0．褶曲軸・地質境界・断層などの手動描画． */
+.line-style-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.line-draw-actions,.line-edit-actions{margin-top:8px}
+.line-status{
+  margin:9px 0 7px;
+  padding:7px 9px;
+  border-left:4px solid var(--accent);
+  background:#f5f8fb;
+  font-size:.82rem;
+  font-weight:700;
+}
+.interpretation-line-list{
+  display:grid;
+  gap:6px;
+  max-height:300px;
+  overflow:auto;
+  margin-top:7px;
+}
+.line-list-empty{padding:10px;border:1px solid #ddd;background:#fafafa;color:var(--muted);font-size:.82rem}
+.interpretation-line-row{
+  display:grid;
+  grid-template-columns:22px 18px minmax(110px,1fr) auto;
+  gap:7px;
+  align-items:center;
+  padding:6px;
+  border:1px solid #ddd;
+  background:#fff;
+}
+.interpretation-line-row.selected{border-color:var(--accent);background:#eef5fa}
+.line-visibility{width:18px;height:18px;min-height:auto;margin:0}
+.line-swatch{width:16px;height:16px;border-radius:3px;border:1px solid rgba(0,0,0,.35)}
+.line-row-main{min-width:0;display:grid;gap:2px}
+.line-row-main strong{font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.line-row-main small{font-size:.72rem;color:var(--muted)}
+.line-row-actions{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.line-row-actions button{min-height:29px;padding:3px 6px;font-size:.72rem}
+.interpretation-line-label{
+  background:rgba(255,255,255,.88)!important;
+  border:1px solid rgba(0,0,0,.35)!important;
+  box-shadow:none!important;
+  padding:2px 4px!important;
+  font-family:"BIZ UDPGothic","BIZ UDPゴシック","Yu Gothic",Meiryo,sans-serif!important;
+  font-size:11px!important;
+  font-weight:700!important;
+  color:#222!important;
+}
+.interpretation-line-label:before{display:none!important}
+.line-vertex-handle{background:transparent;border:0}
+.line-vertex-handle span{display:block;width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #b00020;box-shadow:0 0 0 1px rgba(255,255,255,.85)}
+#map.line-drawing-active{cursor:crosshair}
+#map.line-drawing-active .leaflet-interactive{cursor:crosshair}
+@media(max-width:700px){
+  .line-style-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .interpretation-line-row{grid-template-columns:22px 18px 1fr}
+  .line-row-actions{grid-column:1/-1;justify-content:flex-start}
+}

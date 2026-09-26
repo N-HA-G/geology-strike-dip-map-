@@ -2,10 +2,10 @@ function buildProjectState(){
   const c=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.21.0",
+    version:"0.23.0",
     savedAt:new Date().toISOString(),
     mapState:{center:[c.lat,c.lng],zoom:map.getZoom(),baseLayerName:currentBaseLayerName},
-    displayState:{showPointId,pointIdDistancePx,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx},
+    displayState:{showPointId,pointIdDistancePx,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels},
     declinationState:{signed:globalDeclinationSigned,direction:declinationDirectionInput.value,value:Number(declinationValueInput.value)||0},
     exportState:{
       ...getExportSettings(),
@@ -17,7 +17,7 @@ function buildProjectState(){
     },
     viewTemplates:getTemplates(),
     colorDefinitions:colorDefinitions.map(x=>({...x})),nextColorDefinitionId,
-    points:measurements.map(plainPoint),gpxFiles:importedGpxFiles
+    points:measurements.map(plainPoint),gpxFiles:importedGpxFiles,interpretationLines:interpretationLinesForProject()
   };
 }
 
@@ -31,6 +31,7 @@ $("saveProjectJson").addEventListener("click",()=>{
 
 function clearAllState(){
   measurementLayer.clearLayers();declutterLeaderLayer.clearLayers();gpxTrackLayer.clearLayers();
+  clearInterpretationLinesState();
   measurements=[];tableDrafts.clear();importedGpxFiles=[];importedGpxKeys.clear();
   colorDefinitions=[{id:"default",name:"標準",color:"#111111"}];nextColorDefinitionId=1;
   nextInternalId=1;nextCreatedOrder=1;editingId=null;resetForm();
@@ -46,6 +47,7 @@ function applyProjectState(state){
   declinationDirectionInput.value=state.declinationState?.direction||(globalDeclinationSigned>=0?"E":"W");
   declinationValueInput.value=String(state.declinationState?.value??Math.abs(globalDeclinationSigned));
   (state.points||[]).forEach(createPoint);
+  restoreInterpretationLines(state.interpretationLines||[]);
   importedGpxFiles=state.gpxFiles||[];
   redrawAllGpxTracks();
 
@@ -58,6 +60,9 @@ function applyProjectState(state){
   symbolSizeInput.value=String(d.symbolScalePercent??100);
   autoDeclutterInput.checked=d.autoDeclutterEnabled!==false;
   declutterGapInput.value=String(d.declutterGapPx??8);
+  showLineLabelsInput.checked=d.showLineLabels!==false;
+  showLineLabels=showLineLabelsInput.checked;
+  interpretationLines.forEach(applyInterpretationLineLabel);
   updateDisplaySettings();
 
   const ex=state.exportState||{};
@@ -195,7 +200,7 @@ $("saveViewTemplate").addEventListener("click",()=>{
     dpi:Number(imageDpiInput.value)||300,
     fixedScale:settings.fixedScale,
     scaleDenominator:settings.scaleDenominator,
-    display:{showPointId,pointIdDistancePx,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx}
+    display:{showPointId,pointIdDistancePx,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels}
   };
   const list=getTemplates(),idx=list.findIndex(t=>t.name===name);
   if(idx>=0)list[idx]=entry;else list.push(entry);
@@ -235,6 +240,9 @@ $("loadViewTemplate").addEventListener("click",()=>{
   symbolSizeInput.value=String(d.symbolScalePercent??100);
   autoDeclutterInput.checked=d.autoDeclutterEnabled!==false;
   declutterGapInput.value=String(d.declutterGapPx??8);
+  showLineLabelsInput.checked=d.showLineLabels!==false;
+  showLineLabels=showLineLabelsInput.checked;
+  interpretationLines.forEach(applyInterpretationLineLabel);
   updateDisplaySettings();
 
   viewTemplateNameInput.value=t.name;
