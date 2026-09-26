@@ -2,10 +2,10 @@ function buildProjectState(){
   const c=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.24.0",
+    version:"0.25.0",
     savedAt:new Date().toISOString(),
     mapState:{center:[c.lat,c.lng],zoom:map.getZoom(),baseLayerName:currentBaseLayerName},
-    displayState:{showPointId,pointIdDistancePx,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels},
+    displayState:{showPointId,pointIdDistancePx,pointIdStyle,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels},
     declinationState:{signed:globalDeclinationSigned,direction:declinationDirectionInput.value,value:Number(declinationValueInput.value)||0},
     exportState:{
       ...getExportSettings(),
@@ -56,6 +56,7 @@ function applyProjectState(state){
   const d=state.displayState||{};
   showPointIdInput.checked=d.showPointId!==false;
   pointIdDistanceInput.value=String(d.pointIdDistancePx??31);
+  pointIdStyleInput.value=d.pointIdStyle||"plain";
   showDipValueInput.checked=d.showDipValue!==false;
   showStrikeValueInput.checked=Boolean(d.showStrikeValue);
   useCorrectedValuesInput.checked=d.useCorrectedValues!==false;
@@ -108,8 +109,8 @@ $("loadProjectJson").addEventListener("click",async()=>{
   }catch(error){msg.textContent=error.message;msg.className="msg error";}
 });
 
-const TEMPLATE_KEY="strikeDipMapViewTemplatesV020";
-const LEGACY_TEMPLATE_KEYS=["strikeDipMapViewTemplatesV014"];
+const TEMPLATE_KEY="strikeDipMapViewTemplatesV025";
+const LEGACY_TEMPLATE_KEYS=["strikeDipMapViewTemplatesV020","strikeDipMapViewTemplatesV014"];
 let templateMemory=[];
 
 function normalizeTemplateList(value){
@@ -202,7 +203,7 @@ $("saveViewTemplate").addEventListener("click",()=>{
     dpi:Number(imageDpiInput.value)||300,
     fixedScale:settings.fixedScale,
     scaleDenominator:settings.scaleDenominator,
-    display:{showPointId,pointIdDistancePx,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels}
+    display:{showPointId,pointIdDistancePx,pointIdStyle,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels}
   };
   const list=getTemplates(),idx=list.findIndex(t=>t.name===name);
   if(idx>=0)list[idx]=entry;else list.push(entry);
@@ -236,6 +237,7 @@ $("loadViewTemplate").addEventListener("click",()=>{
   const d=t.display||{};
   showPointIdInput.checked=d.showPointId!==false;
   pointIdDistanceInput.value=String(d.pointIdDistancePx??31);
+  pointIdStyleInput.value=d.pointIdStyle||"plain";
   showDipValueInput.checked=d.showDipValue!==false;
   showStrikeValueInput.checked=Boolean(d.showStrikeValue);
   useCorrectedValuesInput.checked=d.useCorrectedValues!==false;
