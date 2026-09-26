@@ -26,7 +26,7 @@
     <h1>走向・傾斜マップ</h1>
     <p>フィールド調査・印刷・QGIS連携用</p>
   </div>
-  <div class="version">v0.23</div>
+  <div class="version">v0.24</div>
 </header>
 
 <main>
@@ -96,6 +96,24 @@
         <h3>地図表示・ズーム</h3>
         <label class="inline-control"><span>Zoom</span><input id="zoomSlider" type="range" min="5" max="24" step="0.25" value="16"><output id="zoomValue">16.00</output></label>
         <p class="help">0.25刻みで細かく調整できます．Zoom 19以降は地理院タイルのオーバーズームです．</p>
+      </section>
+
+      <section class="subpanel distance-measure-area">
+        <h3>距離測定</h3>
+        <p class="help">地図上をクリックして2点以上を指定すると，各区間距離と合計距離を測れます．距離はLeafletの測地線距離で計算します．</p>
+        <div class="actions distance-measure-actions">
+          <button type="button" id="startDistanceMeasure" class="primary">計測開始</button>
+          <button type="button" id="finishDistanceMeasure" disabled>計測終了</button>
+          <button type="button" id="undoDistancePoint" disabled>1点戻す</button>
+          <button type="button" id="clearDistanceMeasure" disabled>計測線を消去</button>
+        </div>
+        <div class="distance-readout" aria-live="polite">
+          <div><span>合計距離</span><strong id="distanceTotal">0 m</strong></div>
+          <div><span>区間数</span><strong id="distanceSegmentCount">0</strong></div>
+          <div><span>頂点数</span><strong id="distancePointCount">0</strong></div>
+        </div>
+        <div id="distanceMeasureStatus" class="line-status">待機中</div>
+        <p class="help">計測結果は地図上に残り，作業JSONにも保存されます．「計測線を消去」で削除できます．</p>
       </section>
 
       <section class="subpanel line-drawing-area">
@@ -271,6 +289,7 @@
 <script src="app-v2-core.js"></script>
 <script src="app-v2-map.js"></script>
 <script src="app-v2-lines.js"></script>
+<script src="app-v2-measure.js"></script>
 <script src="app-v2-import.js"></script>
 <script src="app-v2-export.js"></script>
 <script src="app-v2-project.js"></script>

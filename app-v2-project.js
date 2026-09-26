@@ -2,7 +2,7 @@ function buildProjectState(){
   const c=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.23.0",
+    version:"0.24.0",
     savedAt:new Date().toISOString(),
     mapState:{center:[c.lat,c.lng],zoom:map.getZoom(),baseLayerName:currentBaseLayerName},
     displayState:{showPointId,pointIdDistancePx,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels},
@@ -17,7 +17,7 @@ function buildProjectState(){
     },
     viewTemplates:getTemplates(),
     colorDefinitions:colorDefinitions.map(x=>({...x})),nextColorDefinitionId,
-    points:measurements.map(plainPoint),gpxFiles:importedGpxFiles,interpretationLines:interpretationLinesForProject()
+    points:measurements.map(plainPoint),gpxFiles:importedGpxFiles,interpretationLines:interpretationLinesForProject(),distanceMeasurement:distanceMeasurementForProject()
   };
 }
 
@@ -32,6 +32,7 @@ $("saveProjectJson").addEventListener("click",()=>{
 function clearAllState(){
   measurementLayer.clearLayers();declutterLeaderLayer.clearLayers();gpxTrackLayer.clearLayers();
   clearInterpretationLinesState();
+  clearDistanceMeasurementState({silent:true});
   measurements=[];tableDrafts.clear();importedGpxFiles=[];importedGpxKeys.clear();
   colorDefinitions=[{id:"default",name:"標準",color:"#111111"}];nextColorDefinitionId=1;
   nextInternalId=1;nextCreatedOrder=1;editingId=null;resetForm();
@@ -48,6 +49,7 @@ function applyProjectState(state){
   declinationValueInput.value=String(state.declinationState?.value??Math.abs(globalDeclinationSigned));
   (state.points||[]).forEach(createPoint);
   restoreInterpretationLines(state.interpretationLines||[]);
+  restoreDistanceMeasurementState(state.distanceMeasurement||null);
   importedGpxFiles=state.gpxFiles||[];
   redrawAllGpxTracks();
 

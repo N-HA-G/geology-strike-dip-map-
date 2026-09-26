@@ -232,6 +232,11 @@ function setLineDrawingMode(active){
 }
 function startLineDrawing(){
   if(lineDrawingActive)return;
+  if(window.__geologyDistanceMeasureActive){
+    msg.textContent="距離計測中です．先に「計測終了」または「計測線を消去」を実行してください．";
+    msg.className="msg error";
+    return;
+  }
   finishVertexEdit();
   selectedInterpretationLineId=null;
   clearLineDraft();

@@ -137,3 +137,38 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(0,90,180,.18);bor
   .interpretation-line-row{grid-template-columns:22px 18px 1fr}
   .line-row-actions{grid-column:1/-1;justify-content:flex-start}
 }
+
+
+/* Version 0.24.0．地図上の距離測定． */
+.distance-measure-actions{margin-top:6px}
+.distance-readout{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+  margin:9px 0 7px;
+}
+.distance-readout>div{
+  padding:7px 8px;
+  border:1px solid #d7dce1;
+  background:#fafbfc;
+}
+.distance-readout span{display:block;font-size:.72rem;color:var(--muted);margin-bottom:2px}
+.distance-readout strong{font-size:.95rem}
+.distance-measure-label,.distance-total-label{
+  background:rgba(255,255,255,.94);
+  border:1px solid rgba(0,0,0,.38);
+  border-radius:3px;
+  box-shadow:none;
+  padding:2px 4px;
+  color:#222;
+  font-family:"BIZ UDPGothic","BIZ UDPゴシック","Yu Gothic",Meiryo,sans-serif;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.distance-total-label{border-width:2px;font-size:12px}
+.distance-measure-vertex{background:transparent;border:0}
+.distance-measure-vertex span{display:block;width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid #6a1b9a}
+#map.distance-measuring-active{cursor:crosshair}
+#map.distance-measuring-active .leaflet-interactive{cursor:crosshair}
+@media(max-width:600px){.distance-readout{grid-template-columns:1fr}}
