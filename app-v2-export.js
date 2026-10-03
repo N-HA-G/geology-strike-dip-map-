@@ -75,6 +75,7 @@ async function captureMapCanvas(dpi=300){
     if(!canvas||!canvas.width||!canvas.height){
       throw new Error("地図画像を取得できませんでした．地図タイルの読み込み後にもう一度お試しください．");
     }
+    drawInterpretationLinesOnCanvas(canvas);
     return canvas;
   }finally{
     mapElement.classList.remove("exporting");
