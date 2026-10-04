@@ -2,7 +2,7 @@ function buildProjectState(){
   const c=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.27.0",
+    version:"0.28.0",
     savedAt:new Date().toISOString(),
     mapState:{center:[c.lat,c.lng],zoom:map.getZoom(),baseLayerName:currentBaseLayerName},
     displayState:{showPointId,pointIdDistancePx,pointIdStyle,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels},
