@@ -55,6 +55,87 @@ async function waitForMapReady(){
   await new Promise(resolve=>setTimeout(resolve,350));
 }
 
+
+function exportLineDashArray(item){
+  if(item?.style==="dashed")return [10,7];
+  if(item?.style==="dotted")return [2,7];
+  if(item?.certainty==="inferred")return [10,7];
+  return [];
+}
+
+// LeafletのSVGベクター線はhtml2canvasで欠落する環境があるため，
+// 出力時だけ同じ緯度経度からCanvasへ確実に再描画する．
+function drawInterpretationLinesOnCanvas(canvas){
+  if(typeof interpretationLines==="undefined"||!Array.isArray(interpretationLines)||!interpretationLines.length)return;
+  const ctx=canvas.getContext("2d");
+  if(!ctx)return;
+
+  const cssW=Math.max(1,mapElement.clientWidth||canvas.width);
+  const cssH=Math.max(1,mapElement.clientHeight||canvas.height);
+  const scaleX=canvas.width/cssW;
+  const scaleY=canvas.height/cssH;
+  const strokeScale=(scaleX+scaleY)/2;
+  const fontFamily='"BIZ UDPGothic","BIZ UDPゴシック","Yu Gothic",Meiryo,sans-serif';
+
+  interpretationLines.forEach(item=>{
+    if(item?.visible===false||!Array.isArray(item?.latlngs)||item.latlngs.length<2)return;
+    const pts=item.latlngs.map(latlng=>map.latLngToContainerPoint(latlng));
+    ctx.save();
+    ctx.beginPath();
+    pts.forEach((pt,index)=>{
+      const x=pt.x*scaleX;
+      const y=pt.y*scaleY;
+      if(index===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.strokeStyle=normalizeHexColor(item.color,"#c62828");
+    ctx.lineWidth=Math.max(1,(Number(item.width)||3)*strokeScale);
+    ctx.lineCap="round";
+    ctx.lineJoin="round";
+    ctx.globalAlpha=.92;
+    ctx.setLineDash(exportLineDashArray(item).map(v=>v*strokeScale));
+    ctx.stroke();
+    ctx.restore();
+
+    if(typeof showLineLabels!=="undefined"&&showLineLabels&&item.name){
+      let anchorLatLng=null;
+      if(typeof lineCenterLatLng==="function")anchorLatLng=lineCenterLatLng(item);
+      if(!anchorLatLng){
+        const p=item.latlngs[Math.floor(item.latlngs.length/2)];
+        anchorLatLng=L.latLng(p.lat,p.lng);
+      }
+      const anchor=map.latLngToContainerPoint(anchorLatLng);
+      const ax=anchor.x*scaleX;
+      const ay=anchor.y*scaleY;
+      const fontSize=Math.max(10,11*strokeScale);
+      const label=String(item.name);
+      ctx.save();
+      ctx.font=`700 ${fontSize}px ${fontFamily}`;
+      ctx.textAlign="center";
+      ctx.textBaseline="middle";
+      const padX=6*strokeScale;
+      const padY=3*strokeScale;
+      const metrics=ctx.measureText(label);
+      const boxW=metrics.width+padX*2;
+      const boxH=fontSize+padY*2;
+      ctx.fillStyle="rgba(255,255,255,.92)";
+      ctx.strokeStyle="rgba(0,0,0,.28)";
+      ctx.lineWidth=Math.max(.75,strokeScale);
+      if(typeof ctx.roundRect==="function"){
+        ctx.beginPath();
+        ctx.roundRect(ax-boxW/2,ay-boxH/2,boxW,boxH,4*strokeScale);
+        ctx.fill();
+        ctx.stroke();
+      }else{
+        ctx.fillRect(ax-boxW/2,ay-boxH/2,boxW,boxH);
+        ctx.strokeRect(ax-boxW/2,ay-boxH/2,boxW,boxH);
+      }
+      ctx.fillStyle="#111";
+      ctx.fillText(label,ax,ay);
+      ctx.restore();
+    }
+  });
+}
+
 async function captureMapCanvas(dpi=300){
   map.closePopup();
   const hadDraftLayer=typeof interpretationDraftLayer!=="undefined"&&map.hasLayer(interpretationDraftLayer);

@@ -2,7 +2,7 @@ function buildProjectState(){
   const c=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.26.0",
+    version:"0.27.0",
     savedAt:new Date().toISOString(),
     mapState:{center:[c.lat,c.lng],zoom:map.getZoom(),baseLayerName:currentBaseLayerName},
     displayState:{showPointId,pointIdDistancePx,pointIdStyle,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels},
@@ -190,7 +190,7 @@ $("saveViewTemplate").addEventListener("click",()=>{
   if(!name){msg.textContent="テンプレート名を入力してください．";msg.className="msg error";return;}
   const settings=getExportSettings();
   const scaleText=settings.fixedScale?`1:${settings.scaleDenominator.toLocaleString("ja-JP")}`:`地図Zoom ${Number(map.getZoom()).toFixed(2)}`;
-  if(!confirmAction(`「${name}」として現在の位置・${scaleText}・表示／出力設定を保存します．`))return;
+  if(!confirmAction(`「${name}」として現在の位置・${scaleText}・出力設定を保存します．`))return;
   const c=map.getCenter();
   const entry={
     name,
@@ -202,8 +202,7 @@ $("saveViewTemplate").addEventListener("click",()=>{
     marginMm:Number(paperMarginInput.value)||0,
     dpi:Number(imageDpiInput.value)||300,
     fixedScale:settings.fixedScale,
-    scaleDenominator:settings.scaleDenominator,
-    display:{showPointId,pointIdDistancePx,pointIdStyle,showDipValue,showStrikeValue,useCorrectedValues,symbolScalePercent,autoDeclutterEnabled,declutterGapPx,showLineLabels}
+    scaleDenominator:settings.scaleDenominator
   };
   const list=getTemplates(),idx=list.findIndex(t=>t.name===name);
   if(idx>=0)list[idx]=entry;else list.push(entry);
@@ -233,21 +232,6 @@ $("loadViewTemplate").addEventListener("click",()=>{
   if(t.dpi)imageDpiInput.value=String(t.dpi);
   lockPrintScaleInput.checked=Boolean(t.fixedScale);
   outputScaleInput.value=String(t.scaleDenominator??1000);
-
-  const d=t.display||{};
-  showPointIdInput.checked=d.showPointId!==false;
-  pointIdDistanceInput.value=String(d.pointIdDistancePx??31);
-  pointIdStyleInput.value=d.pointIdStyle||"plain";
-  showDipValueInput.checked=d.showDipValue!==false;
-  showStrikeValueInput.checked=Boolean(d.showStrikeValue);
-  useCorrectedValuesInput.checked=d.useCorrectedValues!==false;
-  symbolSizeInput.value=String(d.symbolScalePercent??100);
-  autoDeclutterInput.checked=d.autoDeclutterEnabled!==false;
-  declutterGapInput.value=String(d.declutterGapPx??8);
-  showLineLabelsInput.checked=d.showLineLabels!==false;
-  showLineLabels=showLineLabelsInput.checked;
-  interpretationLines.forEach(applyInterpretationLineLabel);
-  updateDisplaySettings();
 
   viewTemplateNameInput.value=t.name;
   const scaleText=t.fixedScale?`縮尺 1:${Number(t.scaleDenominator??1000).toLocaleString("ja-JP")}`:`Zoom ${Number(t.zoom??map.getZoom()).toFixed(2)}`;
