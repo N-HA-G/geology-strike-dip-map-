@@ -53,6 +53,8 @@ const discardTableChangesButton=$("discardTableChanges");
 const draftStatus=$("draftStatus");
 const gpxFilesInput=$("gpxFiles");
 const excelFilesInput=$("excelFiles");
+const geotiffFilesInput=$("geotiffFiles");
+const geotiffLayerList=$("geotiffLayerList");
 const loadExcelButton=$("loadExcel");
 const exportPointExcelButton=$("exportPointExcel");
 const newColorNameInput=$("newColorName");
@@ -103,6 +105,9 @@ let colorDefinitions=[
   {id:"default",name:"標準",color:"#111111"}
 ];
 let nextColorDefinitionId=1;
+let geoTiffLayers=[];
+let nextGeoTiffLayerId=1;
+
 
 let importedGpxFiles=[];
 const importedGpxKeys=new Set();
@@ -1452,19 +1457,36 @@ const PAGE_SIZES_MM={
 };
 
 function getExportSettings(){
-  const paperSize=paperSizeInput.value in PAGE_SIZES_MM ? paperSizeInput.value : "A4";
-  const orientation=paperOrientationInput.value==="portrait" ? "portrait" : "landscape";
-  const marginMm=Math.min(40,Math.max(0,Number.isFinite(Number(paperMarginInput.value))?Number(paperMarginInput.value):10));
+  const paperSize=paperSizeInput.value in PAGE_SIZES_MM
+    ?paperSizeInput.value
+    :"A4";
+
+  const orientation=paperOrientationInput.value==="portrait"
+    ?"portrait"
+    :"landscape";
+
+  const marginMm=Math.min(
+    40,
+    Math.max(
+      0,
+      Number.isFinite(Number(paperMarginInput.value))
+        ?Number(paperMarginInput.value)
+        :10
+    )
+  );
+
   const dpi=Number(imageDpiInput.value);
   const safeDpi=[150,200,300].includes(dpi)?dpi:300;
+
   return {paperSize,orientation,marginMm,dpi:safeDpi};
 }
 
 function pageSizeMm(settings){
   const base=PAGE_SIZES_MM[settings.paperSize]||PAGE_SIZES_MM.A4;
+
   return settings.orientation==="landscape"
-    ? {width:base.height,height:base.width}
-    : {width:base.width,height:base.height};
+    ?{width:base.height,height:base.width}
+    :{width:base.width,height:base.height};
 }
 
 function mmToPx(mm,dpi){
@@ -1472,34 +1494,97 @@ function mmToPx(mm,dpi){
 }
 
 function clampMarginForPage(pageMm,marginMm){
-  const maxAllowed=Math.floor(Math.min(pageMm.width,pageMm.height)/2 - 1);
-  return Math.max(0,Math.min(marginMm,maxAllowed));
+  const maxAllowed=Math.floor(
+    Math.min(pageMm.width,pageMm.height)/2 - 1
+  );
+
+  return Math.max(
+    0,
+    Math.min(marginMm,maxAllowed)
+  );
 }
 
-async function composePrintCanvas(format="png"){
+async function composePrintCanvas(){
   const settings=getExportSettings();
   const mapCanvas=await captureMapCanvas();
   const pageMm=pageSizeMm(settings);
-  const marginMm=clampMarginForPage(pageMm,settings.marginMm);
-  const pagePx={width:mmToPx(pageMm.width,settings.dpi),height:mmToPx(pageMm.height,settings.dpi)};
-  const marginPx=mmToPx(marginMm,settings.dpi);
-  const usableWidth=Math.max(1,pagePx.width - marginPx*2);
-  const usableHeight=Math.max(1,pagePx.height - marginPx*2);
-  const ratio=Math.min(usableWidth/mapCanvas.width, usableHeight/mapCanvas.height);
-  const drawWidth=Math.max(1,Math.round(mapCanvas.width*ratio));
-  const drawHeight=Math.max(1,Math.round(mapCanvas.height*ratio));
-  const offsetX=Math.round((pagePx.width-drawWidth)/2);
-  const offsetY=Math.round((pagePx.height-drawHeight)/2);
+  const marginMm=clampMarginForPage(
+    pageMm,
+    settings.marginMm
+  );
+
+  const pagePx={
+    width:mmToPx(pageMm.width,settings.dpi),
+    height:mmToPx(pageMm.height,settings.dpi)
+  };
+
+  const marginPx=mmToPx(
+    marginMm,
+    settings.dpi
+  );
+
+  const usableWidth=Math.max(
+    1,
+    pagePx.width-marginPx*2
+  );
+
+  const usableHeight=Math.max(
+    1,
+    pagePx.height-marginPx*2
+  );
+
+  const ratio=Math.min(
+    usableWidth/mapCanvas.width,
+    usableHeight/mapCanvas.height
+  );
+
+  const drawWidth=Math.max(
+    1,
+    Math.round(mapCanvas.width*ratio)
+  );
+
+  const drawHeight=Math.max(
+    1,
+    Math.round(mapCanvas.height*ratio)
+  );
+
+  const offsetX=Math.round(
+    (pagePx.width-drawWidth)/2
+  );
+
+  const offsetY=Math.round(
+    (pagePx.height-drawHeight)/2
+  );
 
   const pageCanvas=document.createElement("canvas");
+
   pageCanvas.width=pagePx.width;
   pageCanvas.height=pagePx.height;
-  const ctx=pageCanvas.getContext("2d");
-  ctx.fillStyle="#ffffff";
-  ctx.fillRect(0,0,pageCanvas.width,pageCanvas.height);
-  ctx.drawImage(mapCanvas,offsetX,offsetY,drawWidth,drawHeight);
 
-  return {canvas:pageCanvas,settings,pageMm,pagePx,marginMm,format};
+  const ctx=pageCanvas.getContext("2d");
+
+  ctx.fillStyle="#ffffff";
+  ctx.fillRect(
+    0,
+    0,
+    pageCanvas.width,
+    pageCanvas.height
+  );
+
+  ctx.drawImage(
+    mapCanvas,
+    offsetX,
+    offsetY,
+    drawWidth,
+    drawHeight
+  );
+
+  return {
+    canvas:pageCanvas,
+    settings,
+    pageMm,
+    marginMm
+  };
 }
 
 
@@ -1761,6 +1846,442 @@ loadExcelButton.addEventListener("click",async()=>{
   msg.className="msg success";
 });
 
+
+function renderGeoTiffLayerList(){
+  if(geoTiffLayers.length===0){
+    geotiffLayerList.textContent=
+      "読み込んだGeoTIFFはありません．";
+    return;
+  }
+
+  geotiffLayerList.innerHTML=
+    geoTiffLayers.map(item=>`
+      <div
+        class="geotiff-layer-row"
+        data-geotiff-id="${item.id}"
+      >
+        <div class="geotiff-layer-main">
+          <label class="geotiff-visible-label">
+            <input
+              type="checkbox"
+              class="geotiff-visible"
+              ${item.visible?"checked":""}
+            >
+            <span>${escapeHtml(item.name)}</span>
+          </label>
+
+          <span class="geotiff-meta">
+            ${item.width}×${item.height}px
+          </span>
+        </div>
+
+        <div class="geotiff-opacity-row">
+          <span>透明度</span>
+          <input
+            type="range"
+            class="geotiff-opacity"
+            min="0"
+            max="100"
+            step="5"
+            value="${Math.round(item.opacity*100)}"
+          >
+          <output>${Math.round(item.opacity*100)}％</output>
+        </div>
+
+        <div class="actions geotiff-actions">
+          <button
+            type="button"
+            class="geotiff-zoom"
+          >範囲へズーム</button>
+
+          <button
+            type="button"
+            class="delete-button geotiff-remove"
+          >削除</button>
+        </div>
+      </div>
+    `).join("");
+}
+
+function geoTiffBoundsAreGeographic(bbox){
+  if(!Array.isArray(bbox)||bbox.length!==4){
+    return false;
+  }
+
+  const [minX,minY,maxX,maxY]=bbox;
+
+  return [
+    minX,minY,maxX,maxY
+  ].every(Number.isFinite)
+    &&minX>=-180
+    &&maxX<=180
+    &&minY>=-90
+    &&maxY<=90
+    &&minX<maxX
+    &&minY<maxY;
+}
+
+function geoTiffRasterToCanvas(
+  raster,
+  width,
+  height,
+  samplesPerPixel
+){
+  const canvas=document.createElement("canvas");
+
+  canvas.width=width;
+  canvas.height=height;
+
+  const ctx=canvas.getContext("2d");
+
+  const imageData=ctx.createImageData(
+    width,
+    height
+  );
+
+  const target=imageData.data;
+
+  for(let pixel=0;pixel<width*height;pixel++){
+    const src=pixel*samplesPerPixel;
+    const dst=pixel*4;
+
+    if(samplesPerPixel>=3){
+      target[dst]=raster[src]??0;
+      target[dst+1]=raster[src+1]??0;
+      target[dst+2]=raster[src+2]??0;
+      target[dst+3]=
+        samplesPerPixel>=4
+          ?raster[src+3]??255
+          :255;
+    }else{
+      const value=raster[src]??0;
+
+      target[dst]=value;
+      target[dst+1]=value;
+      target[dst+2]=value;
+      target[dst+3]=255;
+    }
+  }
+
+  ctx.putImageData(
+    imageData,
+    0,
+    0
+  );
+
+  return canvas;
+}
+
+async function loadOneGeoTiff(file){
+  if(typeof GeoTIFF==="undefined"){
+    throw new Error(
+      "GeoTIFF読込ライブラリを読み込めませんでした．通信環境を確認してください．"
+    );
+  }
+
+  const tiff=await GeoTIFF.fromBlob(file);
+  const image=await tiff.getImage();
+  const bbox=image.getBoundingBox();
+
+  if(!geoTiffBoundsAreGeographic(bbox)){
+    throw new Error(
+      `${file.name} は緯度・経度として直接表示できるGeoTIFFではありません．投影座標系のGeoTIFFは，いったんEPSG:4326等へ変換してください．`
+    );
+  }
+
+  const originalWidth=image.getWidth();
+  const originalHeight=image.getHeight();
+
+  // ブラウザ負荷を抑えつつ，今回の50k地質図程度は原寸で保持する．
+  const maxDimension=4096;
+  const scale=Math.min(
+    1,
+    maxDimension/Math.max(
+      originalWidth,
+      originalHeight
+    )
+  );
+
+  const width=Math.max(
+    1,
+    Math.round(originalWidth*scale)
+  );
+
+  const height=Math.max(
+    1,
+    Math.round(originalHeight*scale)
+  );
+
+  const directory=image.getFileDirectory();
+  const samplesPerPixel=
+    Number(directory.SamplesPerPixel)||1;
+
+  const raster=await image.readRasters({
+    interleave:true,
+    width,
+    height,
+    resampleMethod:"bilinear"
+  });
+
+  const canvas=geoTiffRasterToCanvas(
+    raster,
+    width,
+    height,
+    samplesPerPixel
+  );
+
+  const dataUrl=canvas.toDataURL(
+    "image/png"
+  );
+
+  const [minX,minY,maxX,maxY]=bbox;
+
+  const bounds=L.latLngBounds(
+    [minY,minX],
+    [maxY,maxX]
+  );
+
+  const opacity=0.65;
+
+  const layer=L.imageOverlay(
+    dataUrl,
+    bounds,
+    {
+      opacity,
+      interactive:false
+    }
+  );
+
+  layer.addTo(map);
+  layer.bringToBack();
+
+  const item={
+    id:nextGeoTiffLayerId++,
+    name:file.name,
+    layer,
+    bounds,
+    opacity,
+    visible:true,
+    width:originalWidth,
+    height:originalHeight,
+    bbox:[minX,minY,maxX,maxY]
+  };
+
+  geoTiffLayers.push(item);
+
+  return item;
+}
+
+$("loadGeoTiff").addEventListener(
+  "click",
+  async()=>{
+    const files=Array.from(
+      geotiffFilesInput.files||[]
+    );
+
+    if(files.length===0){
+      msg.textContent=
+        "読み込むGeoTIFFを選択してください．";
+
+      msg.className="msg error";
+      return;
+    }
+
+    let loaded=0;
+    const bounds=[];
+
+    for(const file of files){
+      try{
+        msg.textContent=
+          `${file.name} を読み込んでいます．`;
+
+        msg.className="msg success";
+
+        const item=
+          await loadOneGeoTiff(file);
+
+        bounds.push(item.bounds);
+        loaded++;
+      }catch(error){
+        console.error(error);
+
+        msg.textContent=error.message;
+        msg.className="msg error";
+
+        renderGeoTiffLayerList();
+        return;
+      }
+    }
+
+    renderGeoTiffLayerList();
+
+    if(bounds.length>0){
+      let combined=bounds[0];
+
+      for(let index=1;index<bounds.length;index++){
+        combined=combined.extend(
+          bounds[index]
+        );
+      }
+
+      map.fitBounds(
+        combined,
+        {
+          padding:[25,25],
+          maxZoom:16
+        }
+      );
+    }
+
+    msg.textContent=
+      `${loaded}個のGeoTIFFを読み込みました．`;
+
+    msg.className="msg success";
+
+    geotiffFilesInput.value="";
+  }
+);
+
+$("clearGeoTiffs").addEventListener(
+  "click",
+  ()=>{
+    geoTiffLayers.forEach(item=>{
+      if(map.hasLayer(item.layer)){
+        map.removeLayer(item.layer);
+      }
+    });
+
+    geoTiffLayers=[];
+    renderGeoTiffLayerList();
+
+    msg.textContent=
+      "GeoTIFFをすべて消去しました．";
+
+    msg.className="msg";
+  }
+);
+
+geotiffLayerList.addEventListener(
+  "change",
+  event=>{
+    const row=event.target.closest(
+      "[data-geotiff-id]"
+    );
+
+    if(!row){
+      return;
+    }
+
+    const id=Number(
+      row.dataset.geotiffId
+    );
+
+    const item=geoTiffLayers.find(
+      layer=>layer.id===id
+    );
+
+    if(!item){
+      return;
+    }
+
+    if(
+      event.target.classList.contains(
+        "geotiff-visible"
+      )
+    ){
+      item.visible=event.target.checked;
+
+      if(item.visible){
+        if(!map.hasLayer(item.layer)){
+          item.layer.addTo(map);
+          item.layer.bringToBack();
+        }
+      }else if(map.hasLayer(item.layer)){
+        map.removeLayer(item.layer);
+      }
+    }
+
+    if(
+      event.target.classList.contains(
+        "geotiff-opacity"
+      )
+    ){
+      item.opacity=
+        Number(event.target.value)/100;
+
+      item.layer.setOpacity(
+        item.opacity
+      );
+
+      const output=
+        event.target.parentElement.querySelector(
+          "output"
+        );
+
+      if(output){
+        output.textContent=
+          `${Math.round(item.opacity*100)}％`;
+      }
+    }
+  }
+);
+
+geotiffLayerList.addEventListener(
+  "click",
+  event=>{
+    const row=event.target.closest(
+      "[data-geotiff-id]"
+    );
+
+    if(!row){
+      return;
+    }
+
+    const id=Number(
+      row.dataset.geotiffId
+    );
+
+    const item=geoTiffLayers.find(
+      layer=>layer.id===id
+    );
+
+    if(!item){
+      return;
+    }
+
+    if(
+      event.target.closest(
+        ".geotiff-zoom"
+      )
+    ){
+      map.fitBounds(
+        item.bounds,
+        {
+          padding:[25,25],
+          maxZoom:18
+        }
+      );
+    }
+
+    if(
+      event.target.closest(
+        ".geotiff-remove"
+      )
+    ){
+      if(map.hasLayer(item.layer)){
+        map.removeLayer(item.layer);
+      }
+
+      geoTiffLayers=
+        geoTiffLayers.filter(
+          layer=>layer.id!==id
+        );
+
+      renderGeoTiffLayerList();
+    }
+  }
+);
+
 function directChildText(node,localName){
   for(const child of node.children){
     if(child.localName===localName)return child.textContent.trim();
@@ -1880,6 +2401,7 @@ $("loadGpx").addEventListener("click",async()=>{
 
   renderMeasurements();
   renderGpxFileList();
+renderGeoTiffLayerList();
   if(newBounds.length>0)map.fitBounds(newBounds,{padding:[30,30],maxZoom:16});
 
   if(loaded>0){
@@ -1983,14 +2505,29 @@ async function captureMapCanvas(){
 
 exportPngButton.addEventListener("click",async()=>{
   try{
-    const settings=getExportSettings();
-    msg.textContent=`PNG画像を作成しています．${settings.paperSize}・${settings.orientation==="landscape"?"横":"縦"}・${settings.dpi}dpi．`;
+    const result=await composePrintCanvas();
+
+    msg.textContent=
+      `PNG画像を作成しています．`+
+      `${result.settings.paperSize}・`+
+      `${result.settings.orientation==="landscape"?"横":"縦"}・`+
+      `${result.settings.dpi}dpi．`;
+
     msg.className="msg success";
-    const result=await composePrintCanvas("png");
+
     result.canvas.toBlob(blob=>{
-      if(!blob){msg.textContent="PNG画像の生成に失敗しました．";msg.className="msg error";return;}
-      downloadBlob(`strike_dip_map_${result.settings.paperSize}_${result.settings.orientation}_${result.settings.dpi}dpi_${timestampText()}.png`,blob);
-      msg.textContent=`PNG画像を出力しました．${result.settings.paperSize}・${result.settings.orientation==="landscape"?"横":"縦"}・${result.settings.dpi}dpi．`;
+      if(!blob){
+        msg.textContent="PNG画像の生成に失敗しました．";
+        msg.className="msg error";
+        return;
+      }
+
+      downloadBlob(
+        `strike_dip_map_${result.settings.paperSize}_${result.settings.orientation}_${result.settings.dpi}dpi_${timestampText()}.png`,
+        blob
+      );
+
+      msg.textContent="PNG画像を出力しました．";
       msg.className="msg success";
     },"image/png");
   }catch(error){
@@ -2002,14 +2539,29 @@ exportPngButton.addEventListener("click",async()=>{
 
 exportJpegButton.addEventListener("click",async()=>{
   try{
-    const settings=getExportSettings();
-    msg.textContent=`JPEG画像を作成しています．${settings.paperSize}・${settings.orientation==="landscape"?"横":"縦"}・${settings.dpi}dpi．`;
+    const result=await composePrintCanvas();
+
+    msg.textContent=
+      `JPEG画像を作成しています．`+
+      `${result.settings.paperSize}・`+
+      `${result.settings.orientation==="landscape"?"横":"縦"}・`+
+      `${result.settings.dpi}dpi．`;
+
     msg.className="msg success";
-    const result=await composePrintCanvas("jpeg");
+
     result.canvas.toBlob(blob=>{
-      if(!blob){msg.textContent="JPEG画像の生成に失敗しました．";msg.className="msg error";return;}
-      downloadBlob(`strike_dip_map_${result.settings.paperSize}_${result.settings.orientation}_${result.settings.dpi}dpi_${timestampText()}.jpg`,blob);
-      msg.textContent=`JPEG画像を出力しました．${result.settings.paperSize}・${result.settings.orientation==="landscape"?"横":"縦"}・${result.settings.dpi}dpi．`;
+      if(!blob){
+        msg.textContent="JPEG画像の生成に失敗しました．";
+        msg.className="msg error";
+        return;
+      }
+
+      downloadBlob(
+        `strike_dip_map_${result.settings.paperSize}_${result.settings.orientation}_${result.settings.dpi}dpi_${timestampText()}.jpg`,
+        blob
+      );
+
+      msg.textContent="JPEG画像を出力しました．";
       msg.className="msg success";
     },"image/jpeg",0.95);
   }catch(error){
@@ -2022,24 +2574,73 @@ exportJpegButton.addEventListener("click",async()=>{
 exportPdfButton.addEventListener("click",async()=>{
   try{
     const settings=getExportSettings();
-    msg.textContent=`PDFを作成しています．${settings.paperSize}・${settings.orientation==="landscape"?"横":"縦"}．`;
+
+    msg.textContent=
+      `PDFを作成しています．`+
+      `${settings.paperSize}・`+
+      `${settings.orientation==="landscape"?"横":"縦"}．`;
+
     msg.className="msg success";
+
     const mapCanvas=await captureMapCanvas();
-    const imgData=mapCanvas.toDataURL("image/jpeg",0.95);
+    const imgData=mapCanvas.toDataURL(
+      "image/jpeg",
+      0.95
+    );
+
     const {jsPDF}=window.jspdf;
     const pageMm=pageSizeMm(settings);
-    const marginMm=clampMarginForPage(pageMm,settings.marginMm);
-    const pdf=new jsPDF({orientation:settings.orientation,unit:"mm",format:[pageMm.width,pageMm.height]});
-    const usableW=pageMm.width - marginMm*2;
-    const usableH=pageMm.height - marginMm*2;
-    const ratio=Math.min(usableW/mapCanvas.width, usableH/mapCanvas.height);
-    const drawW=mapCanvas.width*ratio;
-    const drawH=mapCanvas.height*ratio;
-    const x=(pageMm.width-drawW)/2;
-    const y=(pageMm.height-drawH)/2;
-    pdf.addImage(imgData,"JPEG",x,y,drawW,drawH);
-    pdf.save(`strike_dip_map_${settings.paperSize}_${settings.orientation}_${timestampText()}.pdf`);
-    msg.textContent=`PDFを出力しました．${settings.paperSize}・${settings.orientation==="landscape"?"横":"縦"}．`;
+    const marginMm=clampMarginForPage(
+      pageMm,
+      settings.marginMm
+    );
+
+    const pdf=new jsPDF({
+      orientation:settings.orientation,
+      unit:"mm",
+      format:[
+        pageMm.width,
+        pageMm.height
+      ]
+    });
+
+    const usableW=
+      pageMm.width-marginMm*2;
+
+    const usableH=
+      pageMm.height-marginMm*2;
+
+    const ratio=Math.min(
+      usableW/mapCanvas.width,
+      usableH/mapCanvas.height
+    );
+
+    const drawW=
+      mapCanvas.width*ratio;
+
+    const drawH=
+      mapCanvas.height*ratio;
+
+    const x=
+      (pageMm.width-drawW)/2;
+
+    const y=
+      (pageMm.height-drawH)/2;
+
+    pdf.addImage(
+      imgData,
+      "JPEG",
+      x,
+      y,
+      drawW,
+      drawH
+    );
+
+    pdf.save(
+      `strike_dip_map_${settings.paperSize}_${settings.orientation}_${timestampText()}.pdf`
+    );
+
+    msg.textContent="PDFを出力しました．";
     msg.className="msg success";
   }catch(error){
     console.error(error);
@@ -2052,7 +2653,7 @@ function buildProjectState(){
   const center=map.getCenter();
   return {
     appName:"geology-strike-dip-map",
-    version:"0.13.0",
+    version:"0.14.0",
     savedAt:new Date().toISOString(),
     mapState:{
       center:[center.lat,center.lng],
@@ -2068,6 +2669,12 @@ function buildProjectState(){
       declutterGapPx
     },
     exportSettings:getExportSettings(),
+    geoTiffMetadata:geoTiffLayers.map(item=>({
+      name:item.name,
+      opacity:item.opacity,
+      visible:item.visible,
+      bbox:item.bbox
+    })),
     colorDefinitions:colorDefinitions.map(def=>({...def})),
     nextColorDefinitionId,
     tableDrafts:Array.from(tableDrafts.entries()),
@@ -2116,6 +2723,15 @@ function clearAllState(){
 }
 
 function applyProjectState(state){
+  geoTiffLayers.forEach(item=>{
+    if(map.hasLayer(item.layer)){
+      map.removeLayer(item.layer);
+    }
+  });
+
+  geoTiffLayers=[];
+  renderGeoTiffLayerList();
+
   clearAllState();
 
   if(state.sortState){
@@ -2164,6 +2780,27 @@ function applyProjectState(state){
     )||(
       colorDefinitions.length+1
     );
+  }
+
+  if(state.exportSettings){
+    paperSizeInput.value=
+      state.exportSettings.paperSize||"A4";
+
+    paperOrientationInput.value=
+      state.exportSettings.orientation||"landscape";
+
+    paperMarginInput.value=String(
+      state.exportSettings.marginMm??10
+    );
+
+    imageDpiInput.value=String(
+      state.exportSettings.dpi??300
+    );
+  }else{
+    paperSizeInput.value="A4";
+    paperOrientationInput.value="landscape";
+    paperMarginInput.value="10";
+    imageDpiInput.value="300";
   }
 
   renderColorDefinitions();
@@ -2227,7 +2864,17 @@ $("loadProjectJson").addEventListener("click",async()=>{
     }
 
     applyProjectState(state);
-    msg.textContent="作業状態を読み込みました．";
+
+    const geoTiffNote=
+      Array.isArray(state.geoTiffMetadata)
+      &&state.geoTiffMetadata.length>0
+        ?` GeoTIFF ${state.geoTiffMetadata.length}件は容量が大きいためJSONに含まれていません．必要なGeoTIFFを再選択してください．`
+        :"";
+
+    msg.textContent=
+      "作業状態を読み込みました．"+
+      geoTiffNote;
+
     msg.className="msg success";
   }catch(error){
     console.error(error);
@@ -2240,6 +2887,7 @@ paperSizeInput.value="A4";
 paperOrientationInput.value="landscape";
 paperMarginInput.value="10";
 imageDpiInput.value="300";
+
 updateSymbolSize(100,false);
 autoDeclutterInput.checked=true;
 declutterGapInput.value="8";
